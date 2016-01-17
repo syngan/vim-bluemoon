@@ -3,7 +3,7 @@ scriptencoding utf-8
 let s:save_cpo = &cpo
 set cpo&vim
 
-let s:stat = {'enabled': 0}
+let s:stat = {'enabled': 0, 'status': {}}
 
 let s:hl = vital#of('bluemoon').import('Coaster.Highlight')
 
@@ -19,21 +19,24 @@ function! s:init_def() abort " {{{
   if exists('g:bluemoon') && has_key(g:bluemoon, 'colors')
     let s:stat.colors = g:bluemoon.colors
   else
-    let s:stat.colors = []
+    if type(s:stat.colors) != type([])
+        call s:echoerr('invalid definition: colors not found')
+        return
+    endif
   endif
 
   if type(s:stat.colors) != type([])
-      call s:echoerr('invalid definition colors is not a List')
+      call s:echoerr('invalid definition: colors is not a List')
       return
   endif
   let s:stat.colorsdict = {}
   for i in range(len(s:stat.colors))
     let s:stat.colors[i] = s:colors_normalize(s:stat.colors[i], i)
-    let s:stat.colorsdict[i] = s:stat.colors[i])
-    let s:stat.colorsdict[s:stat.colors[i].name] = s:stat.colors[i])
+    let s:stat.colorsdict[i] = s:stat.colors[i]
+    let s:stat.colorsdict[s:stat.colors[i].name] = s:stat.colors[i]
   endfor
-  let s:hl.added = {}
-  let s:hl.index = 0
+  let s:stat.added = {}
+  let s:stat.index = 0
 endfunction " }}}
 
 function! s:colors_normalize(c, idx) abort " {{{
@@ -157,32 +160,41 @@ function! s:get_name(arglist) abort " {{{
   return a:arglist[0]
 endfunction " }}}
 
-function! s:hl_add(args) abort " {{{
-  let i = 0
-  if i >= len(a:args)
-   throw 'pattern not found'
+function! s:rotation() abort " {{{
+  return s:stat.index % len(s:stat.colors)
+endfunction " }}}
+
+function! s:hl_add(pattern, ...) abort " {{{
+
+  if has_key(s:stat.status, a:pattern)
+    " s:hl_del...?
+    let c = s:stat.status[a:pattern]
+    let rname = printf('%s-%d', c.name, c.idx)
+    echo printf("delete rname %s", rname)
+    call s:hl.disable(rname)
+    call s:hl.delete(rname)
+    unlet s:stat.status[a:pattern]
+    return
   endif
-  let pattern = a:args[i]
-  let i += 1
-  if i >= len(a:args)
-   throw 'name not found'
-  endif
-  let name = a:args[i]
-  let i += 1
+
+  let name = (a:0 > 0) ? a:1 : s:rotation()
+  let priority = (a:0 > 1) ? a:2 : 10
   let rname = printf('%s-%d', name, s:stat.index)
-  let s:stat.index += 1
   if has_key(s:stat.colorsdict, name)
-    call s:hl.add(rname, s:stat.colorsdict[name].group, pattern)
-    call s:hl.enable(rname)
+    let group = s:stat.colorsdict[name].group
   else
-    call s:hl.add(rname, name, pattern)
-    call s:hl.enable(rname)
+    let group = name
   endif
+  call s:hl.add(rname, group, a:pattern, priority)
+  call s:hl.enable(rname)
   if !has_key(s:stat.added, name)
     let s:stat.added[name] = [rname]
   else
     call add(s:stat.added[name], rname)
   endif
+  let s:stat.status[a:pattern] = {'name': name, 'idx': s:stat.index, 'group': group, 'priority': priority}
+  let s:stat.index += 1
+  echo printf("add rname %s", rname)
 endfunction " }}}
 
 function! s:hl_del(args) abort " {{{
@@ -202,16 +214,21 @@ function! s:hl_del(args) abort " {{{
 endfunction " }}}
 
 function! s:hl_delall(args) abort " {{{
+  if len(a:args) > 0
+   throw 'invalid argument'
+  endif
   call s:hl.delete_all()
-  call s:hl.disaable_all()
+  call s:hl.disable_all()
 endfunction " }}}
 
 " BlueMoon {pattern} [name] [priority]  " add
 " BlueMoon -d {name}                    " delete {name}
+" BlueMoon -d {pattern}                 " delete {name}
 " BlueMoon -D                           " delete all
-" BlueMoon -u                           " undo
-" BlueMoon -h                           " show history....
 function! bluemoon#command(arg) abort " {{{
+  if !s:stat.enabled
+    return
+  endif
   let args = s:getopt(a:arg)
   let i = 0
   let mode = 'add'
@@ -229,7 +246,7 @@ function! bluemoon#command(arg) abort " {{{
     endif
   endwhile
   if mode ==# 'add'
-    call s:hl_add(args[i :])
+    call call('s:hl_add', args[i :])
   elseif mode ==# 'del'
     call s:hl_del(args[i :])
   elseif mode ==# 'delall'
