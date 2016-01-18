@@ -29,6 +29,7 @@ function! s:init_def() abort " {{{
       call s:echoerr('invalid definition: colors is not a List')
       return
   endif
+  " @TODO hlexists()
   let s:stat.colorsdict = {}
   for i in range(len(s:stat.colors))
     let s:stat.colors[i] = s:colors_normalize(s:stat.colors[i], i)
@@ -36,6 +37,7 @@ function! s:init_def() abort " {{{
     let s:stat.colorsdict[s:stat.colors[i].name] = s:stat.colors[i]
   endfor
   let s:stat.added = {}
+  let s:stat.status = {}
   let s:stat.index = 0
 endfunction " }}}
 
@@ -45,7 +47,7 @@ function! s:colors_normalize(c, idx) abort " {{{
       call s:echoerr('invalid definition colors[' . a:idx . '] does not have group member')
       return
     endif
-     return extend(a:c, {'name': a:c.group, 'priority': 10}, 'keep')
+     return extend(a:c, {'name': a:c.group, 'priority': 10, 'index': a:idx}, 'keep')
   else
     call s:echoerr('invalid definition colors[' . a:idx . ']')
   endif
@@ -179,12 +181,13 @@ function! s:hl_add(pattern, ...) abort " {{{
 
   let name = (a:0 > 0) ? a:1 : s:rotation()
   let priority = (a:0 > 1) ? a:2 : 10
-  let rname = printf('%s-%d', name, s:stat.index)
   if has_key(s:stat.colorsdict, name)
     let group = s:stat.colorsdict[name].group
+    let name = s:stat.colorsdict[name].name
   else
     let group = name
   endif
+  let rname = printf('%s-%d', name, s:stat.index)
   call s:hl.add(rname, group, a:pattern, priority)
   call s:hl.enable(rname)
   if !has_key(s:stat.added, name)
@@ -213,18 +216,30 @@ function! s:hl_del(args) abort " {{{
   endif
 endfunction " }}}
 
-function! s:hl_delall(args) abort " {{{
-  if len(a:args) > 0
-   throw 'invalid argument'
-  endif
+function! s:hl_delall() abort " {{{
   call s:hl.delete_all()
   call s:hl.disable_all()
+  let s:stat.added = {}
+  let s:stat.status = {}
+  let s:stat.index = 0
 endfunction " }}}
 
-" BlueMoon {pattern} [name] [priority]  " add
+function! bluemoon#show() abort " {{{
+  return s:stat
+endfunction " }}}
+
+function! s:show() abort " {{{
+  for c in keys(s:stat.status)
+    let v = s:stat.status[c]
+    echo printf("%2d:%s\t%s\t%s\t%d", v.idx, v.name, c, v.group, v.priority)
+  endfor
+endfunction " }}}
+
+" BlueMoon [-a] {pattern} [name] [priority]  " add
 " BlueMoon -d {name}                    " delete {name}
 " BlueMoon -d {pattern}                 " delete {name}
 " BlueMoon -D                           " delete all
+" BlueMoon -s                           " show hl
 function! bluemoon#command(arg) abort " {{{
   if !s:stat.enabled
     return
@@ -239,6 +254,12 @@ function! bluemoon#command(arg) abort " {{{
     elseif args[i] == '-D'
       let mode = 'delall'
       let i += 1
+    elseif args[i] == '-s'
+      let mode = 'show'
+      let i += 1
+    elseif args[i] == '-a'
+      let mode = 'add'
+      let i += 1
     elseif args[i] == '-p'
       PP s:stat
     else
@@ -250,7 +271,9 @@ function! bluemoon#command(arg) abort " {{{
   elseif mode ==# 'del'
     call s:hl_del(args[i :])
   elseif mode ==# 'delall'
-    call s:hl_delall(args[i :])
+    call s:hl_delall()
+  elseif mode ==# 'show'
+    call s:show()
   endif
 
   return args
@@ -259,13 +282,6 @@ endfunction " }}}
 function! bluemoon#enable() abort " {{{
   call s:init()
   let s:stat.enabled = 1
-  " augroup BlueMoon
-  "   autocmd!
-  "   autocmd  VimEnter,WinEnter * call s:refresh()
-  "   autocmd! ColorScheme       * call s:init_hi()
-  " augroup END
-  " call s:init_hi()
-  " call s:refresh()
 endfunction " }}}
 
 function! bluemoon#disable() abort " {{{
