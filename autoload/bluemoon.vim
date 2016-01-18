@@ -197,7 +197,7 @@ function! s:hl_add(pattern, ...) abort " {{{
   endif
   let s:stat.status[a:pattern] = {'name': name, 'idx': s:stat.index, 'group': group, 'priority': priority}
   let s:stat.index += 1
-  echo printf("add rname %s", rname)
+  echo printf("add rname=%s, pattern=[%s]", rname, a:pattern)
 endfunction " }}}
 
 function! s:hl_del(args) abort " {{{
@@ -216,12 +216,40 @@ function! s:hl_del(args) abort " {{{
   endif
 endfunction " }}}
 
-function! s:hl_delall() abort " {{{
+function! bluemoon#clear() abort " {{{
   call s:hl.delete_all()
   call s:hl.disable_all()
   let s:stat.added = {}
   let s:stat.status = {}
   let s:stat.index = 0
+endfunction " }}}
+
+function! s:escape_pattern(str) abort " {{{
+  return escape(a:str, '~"/\.^$[]*')
+endfunction " }}}
+
+function! s:get_selected_text() abort " {{{
+  let reg = '"'
+  let regdic = {}
+  for r in [reg]
+    let regdic[r] = [getreg(r), getregtype(r)]
+  endfor
+  try
+    keepjumps silent normal! gv""y
+    return getreg('"')
+  finally
+    for r in [reg]
+      call setreg(r, regdic[r][0], regdic[r][1])
+    endfor
+  endtry
+endfunction " }}}
+
+function! bluemoon#cword(mode) abort " {{{
+  let idx = v:count
+  let pattern =
+        \ a:mode == 'n' ? printf('\<%s\>', expand('<cword>')) :
+        \ a:mode == 'v' ? s:escape_pattern(s:get_selected_text()) : ''
+  return bluemoon#command(printf('/%s/ %d', pattern, idx))
 endfunction " }}}
 
 function! bluemoon#show() abort " {{{
@@ -271,7 +299,7 @@ function! bluemoon#command(arg) abort " {{{
   elseif mode ==# 'del'
     call s:hl_del(args[i :])
   elseif mode ==# 'delall'
-    call s:hl_delall()
+    call bluemoon#clear()
   elseif mode ==# 'show'
     call s:show()
   endif
@@ -286,7 +314,7 @@ endfunction " }}}
 
 function! bluemoon#disable() abort " {{{
   if s:stat.enabled
-    call s:hl_delall()
+    call bluemoon#clear()
     let s:stat.enabled = 0
   endif
 endfunction " }}}
