@@ -17,7 +17,6 @@ function! s:dprintf(...) abort " {{{
   endif
 endfunction " }}}
 
-
 " g:bluemoon = {
 "     'colors': [
 "       {
@@ -181,7 +180,6 @@ function! s:rotation() abort " {{{
 endfunction " }}}
 
 function! s:hl_add(pattern, ...) abort " {{{
-
   if has_key(s:stat.added_pattn, a:pattern)
     " s:hl_del...?
     let c = s:stat.added_pattn[a:pattern]
@@ -236,9 +234,13 @@ function! s:hl_del(args) abort " {{{
   call s:dprintf("del name=%s", name)
 endfunction " }}}
 
+function! s:hl_clearall(hl) abort " {{{
+  call a:hl.delete_all()
+  call a:hl.disable_all()
+endfunction " }}}
+
 function! bluemoon#clear() abort " {{{
-  call s:hl.delete_all()
-  call s:hl.disable_all()
+  call s:hl_clearall(s:hl)
   let s:stat.added_rname = {}
   let s:stat.added_pattn = {}
   let s:stat.counter = 0
@@ -340,6 +342,10 @@ function! bluemoon#disable() abort " {{{
     let s:stat.enabled = 0
   endif
 endfunction " }}}
+
+let g:bluemoon#__hl__ = get(g:, 'bluemoon#__hl__', [])
+call map(g:bluemoon#__hl__, 's:hl_clearall(v:val)')
+let g:bluemoon#__hl__ = [s:hl]
 
 let &cpo = s:save_cpo
 unlet s:save_cpo
