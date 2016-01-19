@@ -51,7 +51,7 @@ function! s:init_def() abort " {{{
   endfor
   let s:stat.added_rname = {}
   let s:stat.added_pattn = {}
-  let s:stat.index = 0
+  let s:stat.counter = 0
 endfunction " }}}
 
 function! s:colordef_normalize(c, idx) abort " {{{
@@ -60,7 +60,8 @@ function! s:colordef_normalize(c, idx) abort " {{{
       call s:echoerr('invalid definition colors[' . a:idx . '] does not have group member')
       return
     endif
-     return extend(a:c, {'name': a:c.group, 'priority': 10, 'index': a:idx}, 'keep')
+    let a:c.index = a:idx
+    return extend(a:c, {'name': a:c.group, 'priority': 10}, 'keep')
   else
     call s:echoerr('invalid definition colors[' . a:idx . ']')
   endif
@@ -176,7 +177,7 @@ function! s:get_name(arglist) abort " {{{
 endfunction " }}}
 
 function! s:rotation() abort " {{{
-  return s:stat.index % len(s:stat.colors)
+  return s:stat.counter % len(s:stat.colors)
 endfunction " }}}
 
 function! s:hl_add(pattern, ...) abort " {{{
@@ -184,7 +185,7 @@ function! s:hl_add(pattern, ...) abort " {{{
   if has_key(s:stat.added_pattn, a:pattern)
     " s:hl_del...?
     let c = s:stat.added_pattn[a:pattern]
-    let rname = printf('%s-%d', c.name, c.idx)
+    let rname = printf('%s-%d', c.name, c.cnt)
     call s:hl.disable(rname)
     call s:hl.delete(rname)
     unlet s:stat.added_pattn[a:pattern]
@@ -197,21 +198,23 @@ function! s:hl_add(pattern, ...) abort " {{{
   if has_key(s:stat.colorsdict, name)
     let group = s:stat.colorsdict[name].group
     let name = s:stat.colorsdict[name].name
+    let index = s:stat.colorsdict[name].index
   else
     let group = name
+    let index = -1
   endif
-  let rname = printf('%s-%d', name, s:stat.index)
+  let rname = printf('%s-%d', name, s:stat.counter)
   call s:hl.add(rname, group, a:pattern, priority)
   call s:hl.enable(rname)
-  let d = {'rname': rname, 'pattern': a:pattern,
-        \ 'name': name, 'idx': s:stat.index, 'group': group, 'priority': priority}
+  let d = {'rname': rname, 'pattern': a:pattern, 'index': index,
+        \ 'name': name, 'cnt': s:stat.counter, 'group': group, 'priority': priority}
   if !has_key(s:stat.added_rname, name)
     let s:stat.added_rname[name] = [d]
   else
     call add(s:stat.added_rname[name], d)
   endif
   let s:stat.added_pattn[a:pattern] = d
-  let s:stat.index += 1
+  let s:stat.counter += 1
   call s:dprintf('add rname=%s, pattern=[%s]', rname, a:pattern)
 endfunction " }}}
 
@@ -238,7 +241,7 @@ function! bluemoon#clear() abort " {{{
   call s:hl.disable_all()
   let s:stat.added_rname = {}
   let s:stat.added_pattn = {}
-  let s:stat.index = 0
+  let s:stat.counter = 0
 endfunction " }}}
 
 function! s:escape_pattern(str) abort " {{{
@@ -278,7 +281,11 @@ endfunction " }}}
 function! s:show() abort " {{{
   for c in keys(s:stat.added_pattn)
     let v = s:stat.added_pattn[c]
-    echo printf("%2d:%s\t%s\t%s\t%d", v.idx, v.name, c, v.group, v.priority)
+    echo printf("%2d:%s\t", v.index, v.name)
+    execute 'echohl' v.group
+    echon printf("%s", v.group)
+    echohl None
+    echon printf("\t%s\t%d", c, v.priority)
   endfor
 endfunction " }}}
 
