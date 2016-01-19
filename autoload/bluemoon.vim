@@ -3,7 +3,7 @@ scriptencoding utf-8
 let s:save_cpo = &cpo
 set cpo&vim
 
-let s:stat = {'enabled': 0, 'status': {}}
+let s:stat = {'enabled': 0, 'added_pattn': {}}
 
 let s:hl = vital#of('bluemoon').import('Coaster.Highlight')
 
@@ -15,6 +15,8 @@ let s:hl = vital#of('bluemoon').import('Coaster.Highlight')
 "         'priority': {priority} of matchadd()
 "       }, args_of_:hi, ...],
 " }
+" @TODO group = [0-9a-zA-Z]\+, tolower.
+" @TODO name overlap
 function! s:init_def() abort " {{{
   if exists('g:bluemoon') && has_key(g:bluemoon, 'colors')
     let s:stat.colors = g:bluemoon.colors
@@ -32,16 +34,16 @@ function! s:init_def() abort " {{{
   " @TODO hlexists()
   let s:stat.colorsdict = {}
   for i in range(len(s:stat.colors))
-    let s:stat.colors[i] = s:colors_normalize(s:stat.colors[i], i)
+    let s:stat.colors[i] = s:colordef_normalize(s:stat.colors[i], i)
     let s:stat.colorsdict[i] = s:stat.colors[i]
     let s:stat.colorsdict[s:stat.colors[i].name] = s:stat.colors[i]
   endfor
-  let s:stat.added = {}
-  let s:stat.status = {}
+  let s:stat.added_rname = {}
+  let s:stat.added_pattn = {}
   let s:stat.index = 0
 endfunction " }}}
 
-function! s:colors_normalize(c, idx) abort " {{{
+function! s:colordef_normalize(c, idx) abort " {{{
   if type(a:c) == type({})
     if !has_key(a:c, 'group')
       call s:echoerr('invalid definition colors[' . a:idx . '] does not have group member')
@@ -168,14 +170,14 @@ endfunction " }}}
 
 function! s:hl_add(pattern, ...) abort " {{{
 
-  if has_key(s:stat.status, a:pattern)
+  if has_key(s:stat.added_pattn, a:pattern)
     " s:hl_del...?
-    let c = s:stat.status[a:pattern]
+    let c = s:stat.added_pattn[a:pattern]
     let rname = printf('%s-%d', c.name, c.idx)
     echo printf("delete rname %s", rname)
     call s:hl.disable(rname)
     call s:hl.delete(rname)
-    unlet s:stat.status[a:pattern]
+    unlet s:stat.added_pattn[a:pattern]
     return
   endif
 
@@ -190,12 +192,12 @@ function! s:hl_add(pattern, ...) abort " {{{
   let rname = printf('%s-%d', name, s:stat.index)
   call s:hl.add(rname, group, a:pattern, priority)
   call s:hl.enable(rname)
-  if !has_key(s:stat.added, name)
-    let s:stat.added[name] = [rname]
+  if !has_key(s:stat.added_rname, name)
+    let s:stat.added_rname[name] = [rname]
   else
-    call add(s:stat.added[name], rname)
+    call add(s:stat.added_rname[name], rname)
   endif
-  let s:stat.status[a:pattern] = {'name': name, 'idx': s:stat.index, 'group': group, 'priority': priority}
+  let s:stat.added_pattn[a:pattern] = {'name': name, 'idx': s:stat.index, 'group': group, 'priority': priority}
   let s:stat.index += 1
   echo printf("add rname=%s, pattern=[%s]", rname, a:pattern)
 endfunction " }}}
@@ -207,20 +209,20 @@ function! s:hl_del(args) abort " {{{
   endif
   let name = a:args[i]
   let i += 1
-  if has_key(s:stat.added, name)
-    for c in s:stat.added[name]
+  if has_key(s:stat.added_rname, name)
+    for c in s:stat.added_rname[name]
       call s:hl.disable(c)
       call s:hl.delete(c)
     endfor
-    unlet s:stat.added[name]
+    unlet s:stat.added_rname[name]
   endif
 endfunction " }}}
 
 function! bluemoon#clear() abort " {{{
   call s:hl.delete_all()
   call s:hl.disable_all()
-  let s:stat.added = {}
-  let s:stat.status = {}
+  let s:stat.added_rname = {}
+  let s:stat.added_pattn = {}
   let s:stat.index = 0
 endfunction " }}}
 
@@ -252,13 +254,15 @@ function! bluemoon#cword(mode) abort " {{{
   return bluemoon#command(printf('/%s/ %d', pattern, idx))
 endfunction " }}}
 
-function! bluemoon#show() abort " {{{
-  return s:stat
+function! bluemoon#debug(p) abort " {{{
+  if a:p == 0
+    return s:stat
+  endif
 endfunction " }}}
 
 function! s:show() abort " {{{
-  for c in keys(s:stat.status)
-    let v = s:stat.status[c]
+  for c in keys(s:stat.added_pattn)
+    let v = s:stat.added_pattn[c]
     echo printf("%2d:%s\t%s\t%s\t%d", v.idx, v.name, c, v.group, v.priority)
   endfor
 endfunction " }}}
