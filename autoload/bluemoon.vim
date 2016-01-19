@@ -282,18 +282,17 @@ function! s:show() abort " {{{
   endfor
 endfunction " }}}
 
-" BlueMoon [-a] {pattern} [name] [priority]  " add
+" BlueMoon {pattern} [name] [priority]  " add / del pattern
 " BlueMoon -d {name}                    " delete {name}
-" BlueMoon -d {pattern}                 " delete {name}
 " BlueMoon -D                           " delete all
-" BlueMoon -s                           " show hl
+" BlueMoon                              " show hl
 function! bluemoon#command(arg) abort " {{{
   if !s:stat.enabled
     return
   endif
   let args = s:getopt(a:arg)
   let i = 0
-  let mode = 'add'
+  let mode = 'add_or_show'
   while i < len(args)
     if args[i] == '-d'
       let mode = 'del'
@@ -301,26 +300,23 @@ function! bluemoon#command(arg) abort " {{{
     elseif args[i] == '-D'
       let mode = 'delall'
       let i += 1
-    elseif args[i] == '-s'
-      let mode = 'show'
-      let i += 1
-    elseif args[i] == '-a'
-      let mode = 'add'
-      let i += 1
     elseif args[i] == '-p'
       PP s:stat
     else
       break
     endif
   endwhile
-  if mode ==# 'add'
-    call call('s:hl_add', args[i :])
+
+  if mode ==# 'add_or_show'
+    if len(args) == 0
+      call s:show()
+    else
+      call call('s:hl_add', args[i :])
+    endif
   elseif mode ==# 'del'
     call s:hl_del(args[i :])
   elseif mode ==# 'delall'
     call bluemoon#clear()
-  elseif mode ==# 'show'
-    call s:show()
   endif
 
   return args

@@ -5,7 +5,7 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 " BlueMoon /pattern/ {name}
-command! -range -nargs=+ BlueMoon
+command! -range -nargs=* BlueMoon
 \ <line1>,<line2>call bluemoon#command(<q-args>)
 
 
