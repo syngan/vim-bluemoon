@@ -7,6 +7,17 @@ let s:stat = {'enabled': 0, 'added_pattn': {}}
 
 let s:hl = vital#of('bluemoon').import('Coaster.Highlight')
 
+function! s:dprintf(...) abort " {{{
+  if exists('g:bluemoon') && get(g:bluemoon, 'verbose', 0)
+    if a:0 > 1
+      echomsg 'bluemoon: ' . call('printf', a:000)
+    elseif a:0 == 1
+      echomsg 'bluemoon: ' . a:1
+    endif
+  endif
+endfunction " }}}
+
+
 " g:bluemoon = {
 "     'colors': [
 "       {
@@ -174,10 +185,10 @@ function! s:hl_add(pattern, ...) abort " {{{
     " s:hl_del...?
     let c = s:stat.added_pattn[a:pattern]
     let rname = printf('%s-%d', c.name, c.idx)
-    echo printf("delete rname %s", rname)
     call s:hl.disable(rname)
     call s:hl.delete(rname)
     unlet s:stat.added_pattn[a:pattern]
+    call s:dprintf("del rname=%s, pattern=%s", rname, a:pattern)
     return
   endif
 
@@ -192,14 +203,16 @@ function! s:hl_add(pattern, ...) abort " {{{
   let rname = printf('%s-%d', name, s:stat.index)
   call s:hl.add(rname, group, a:pattern, priority)
   call s:hl.enable(rname)
+  let d = {'rname': rname, 'pattern': a:pattern,
+        \ 'name': name, 'idx': s:stat.index, 'group': group, 'priority': priority}
   if !has_key(s:stat.added_rname, name)
-    let s:stat.added_rname[name] = [rname]
+    let s:stat.added_rname[name] = [d]
   else
-    call add(s:stat.added_rname[name], rname)
+    call add(s:stat.added_rname[name], d)
   endif
-  let s:stat.added_pattn[a:pattern] = {'name': name, 'idx': s:stat.index, 'group': group, 'priority': priority}
+  let s:stat.added_pattn[a:pattern] = d
   let s:stat.index += 1
-  echo printf("add rname=%s, pattern=[%s]", rname, a:pattern)
+  call s:dprintf('add rname=%s, pattern=[%s]', rname, a:pattern)
 endfunction " }}}
 
 function! s:hl_del(args) abort " {{{
@@ -211,11 +224,13 @@ function! s:hl_del(args) abort " {{{
   let i += 1
   if has_key(s:stat.added_rname, name)
     for c in s:stat.added_rname[name]
-      call s:hl.disable(c)
-      call s:hl.delete(c)
+      call s:hl.disable(c.rname)
+      call s:hl.delete(c.rname)
+      unlet s:stat.added_pattn[c.pattern]
     endfor
     unlet s:stat.added_rname[name]
   endif
+  call s:dprintf("del name=%s", name)
 endfunction " }}}
 
 function! bluemoon#clear() abort " {{{
