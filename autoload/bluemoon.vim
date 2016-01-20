@@ -347,6 +347,10 @@ let g:bluemoon#__hl__ = get(g:, 'bluemoon#__hl__', [])
 call map(g:bluemoon#__hl__, 's:hl_clearall(v:val)')
 let g:bluemoon#__hl__ = [s:hl]
 
+if get(g:, 'bluemoon#enable_at_startup', 0)
+  call bluemoon#enable()
+endif
+
 let &cpo = s:save_cpo
 unlet s:save_cpo
 
