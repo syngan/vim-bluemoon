@@ -25,7 +25,7 @@ endfunction " }}}
 "         'priority': {priority} of matchadd()
 "       }, args_of_:hi, ...],
 " }
-" @TODO group = [0-9a-zA-Z]\+, tolower.
+" @TODO group = [0-9a-zA-Z]\+
 " @TODO name overlap
 function! s:init_def() abort " {{{
   if exists('g:bluemoon') && has_key(g:bluemoon, 'colors')
@@ -60,7 +60,10 @@ function! s:colordef_normalize(c, idx) abort " {{{
       return
     endif
     let a:c.index = a:idx
-    return extend(a:c, {'name': a:c.group, 'priority': 10}, 'keep')
+    let d = extend(a:c, {'name': a:c.group, 'priority': 10}, 'keep')
+    let d.name = tolower(d.name)
+    let d.group = tolower(d.group)
+    return d
   else
     call s:echoerr('invalid definition colors[' . a:idx . ']')
   endif
@@ -204,7 +207,7 @@ function! s:hl_add(pattern, ...) abort " {{{
     return
   endif
 
-  let name = (a:0 > 0) ? a:1 : s:rotation()
+  let name = (a:0 > 0) ? tolower(a:1) : s:rotation()
   let priority = (a:0 > 1) ? a:2 : 10
   if has_key(s:stat.colorsdict, name)
     let group = s:stat.colorsdict[name].group
@@ -234,7 +237,7 @@ function! s:hl_del(args) abort " {{{
   if i >= len(a:args)
    throw 'name not found'
   endif
-  let name = a:args[i]
+  let name = tolower(a:args[i])
   let i += 1
   if has_key(s:stat.added_rname, name)
     for c in s:stat.added_rname[name]
