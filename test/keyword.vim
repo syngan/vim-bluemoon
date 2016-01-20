@@ -50,7 +50,7 @@ function! s:log(str) abort " {{{
   elseif type(a:str) == type([])
     call writefile(a:str, "/tmp/themis.log", "a")
   else
-    call writefile(string([a:str]), "/tmp/themis.log", "a")
+    call writefile([string([a:str])], "/tmp/themis.log", "a")
   endif
 endfunction " }}}
 
@@ -73,7 +73,10 @@ function! s:test(dict, msg, boo) abort " {{{
 endfunction " }}}
 
 function! s:suite.do1() " {{{
-  call s:test({}, 'dodo0', 1)
+  call s:assert.equals(bluemoon#check(), 1)
+  call s:assert.has_key(g:bluemoon, 'keywords')
+  call s:test({}, 'do1-0', 1)
+  call bluemoon#enable()
   BlueMoon hoge red
   call s:test({'hoge': 'red'}, "add hoge", 1)
   BlueMoon foo    0
