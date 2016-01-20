@@ -17,6 +17,110 @@ function! s:dprintf(...) abort " {{{
   endif
 endfunction " }}}
 
+function! bluemoon#check(...) abort " {{{
+  if a:0 == 0 && !exists('g:bluemoon')
+    call s:echoerr('g:bluemoon is not defined')
+    return 1
+  endif
+  let d = a:0 > 0 ? a:1 : g:bluemoon
+  let c = a:0 > 0 ? 'DEF' : 'g:bluemoon'
+  if type(d) != type({})
+    call s:echoerr(c . ' is not a dictionary')
+    return 0
+  endif
+  if !has_key(d, 'colors')
+    call s:echoerr(c . ' does not have "colors"')
+    return 0
+  endif
+  if type(d.colors) != type([])
+    call s:echoerr(c . '.colors is not a list')
+    return 0
+  endif
+  if len(d.colors) == 0
+    call s:echoerr(c . '.colors does not have a member')
+    return 0
+  endif
+  let ret = 1
+  let name = {}
+  for i in range(len(d.colors))
+    if type(d.colors[i]) != type({})
+      call s:echoerr(c . '.colors[' . i . '] is not a dictionary')
+      let ret = 0
+      continue
+    endif
+    if !has_key(d.colors[i], 'group')
+      call s:echoerr(c . '.colors[' . i . '] does not have "group"')
+      let ret = 0
+      continue
+    endif
+    if type(d.colors[i].group) != type('') || d.colors[i].group !~# '^[A-Za-z0-9_]\+$'
+      call s:echoerr(c . '.colors[' . i . '].group does not consist of "[a-zA-Z0-9_]\+"')
+      let ret = 0
+      continue
+    endif
+    if type(get(d.colors[i], 'name', '')) != type('')
+      call s:echoerr(c . '.colors[' . i . '].name is not a String')
+      let ret = 0
+      continue
+    endif
+    let str = get(d.colors[i], 'name', d.colors[i].group)
+    if str !~# '^[A-Za-z0-9_]\+$'
+      call s:echoerr(c . '.colors[' . i . '].name does not consist of "[a-zA-Z0-9_]\+"')
+      let ret = 0
+      continue
+    endif
+    if has_key(name, str)
+      call s:echoerr(c . '.colors[' . name[str] . '] and colors[' . i . '] have same "name"')
+      let ret = 0
+    endif
+    let name[str] = i
+
+    if has_key(d.colors[i], 'priority') && type(d.colors[i].priority) != type(0)
+      call s:echoerr(c . '.colors[' . i . '].priority is not a number')
+      let ret = 0
+    endif
+  endfor
+
+  if has_key(d, 'keywords')
+    if type(d.keywords) != type([])
+      call s:echoerr(c . '.keywords is not a list')
+      return 0
+    endif
+
+    for i in range(len(d.keywords))
+      if type(d.keywords[i]) != type({})
+        call s:echoerr(c . '.keywords[' . i . '] is not a dictionary')
+        let ret = 0
+        continue
+      endif
+      if !has_key(d.keywords[i], 'pattern')
+        call s:echoerr(c . '.keywords[' . i . '] does not have "pattern"')
+        let ret = 0
+        continue
+      endif
+      if type(d.keywords[i].pattern) != type('')
+        call s:echoerr(c . '.keywords[' . i . '].pattern is not a string')
+        let ret = 0
+      endif
+      if !has_key(d.keywords[i], 'group')
+        call s:echoerr(c . '.keywords[' . i . '] does not have "group"')
+        let ret = 0
+        continue
+      endif
+      if type(d.keywords[i].group) != type('') || d.keywords[i].group !~# '^[A-Za-z0-9_]\+$'
+        call s:echoerr(c . '.keywords[' . i . '].group does not consist of "[a-zA-Z0-9_]\+"')
+        let ret = 0
+      endif
+      if has_key(d.keywords[i], 'priority') && type(d.keywords[i].priority) != type(0)
+        call s:echoerr(c . '.keywords[' . i . '].priority is not a number')
+        let ret = 0
+      endif
+    endfor
+  endif
+
+  return ret
+endfunction " }}}
+
 " g:bluemoon = {
 "     'colors': [
 "       {
@@ -25,8 +129,6 @@ endfunction " }}}
 "         'priority': {priority} of matchadd()
 "       }, args_of_:hi, ...],
 " }
-" @TODO group = [0-9a-zA-Z]\+
-" @TODO name overlap
 function! s:init_def() abort " {{{
   if exists('g:bluemoon') && has_key(g:bluemoon, 'colors')
     let s:stat.colors = g:bluemoon.colors
@@ -75,8 +177,11 @@ function! s:keywords() abort " {{{
       let k = g:bluemoon.keywords[i]
       let rname = printf('%s-keyword-%d', k.group, i)
       let priority = get(k, 'priority', 10)
-      call s:coasterhl_add_enable(rname, k.group, k.pattern, priority)
+      call s:hl.add(rname, k.group, k.pattern, priority)
     endfor
+    call s:hl.as_windo().enable_all()
+    let s:stat.keywords = copy(g:bluemoon.keywords)
+    let s:stat.keywordsm = getmatches()
   endif
 endfunction " }}}
 
@@ -213,6 +318,7 @@ function! s:hl_add(pattern, ...) abort " {{{
     call s:coasterhl_del_disable(rname)
     unlet s:stat.added_pattn[a:pattern]
     call s:dprintf("del rname=%s, pattern=%s", rname, a:pattern)
+    " @TODO added_rname. see s:hl_del()
     return
   endif
 
@@ -338,6 +444,9 @@ function! bluemoon#command(arg) abort " {{{
       let i += 1
     elseif args[i] == '-p'
       PP s:stat
+    elseif args[i] == '-c'
+      let mode = 'check'
+      let i += 1
     else
       break
     endif
@@ -353,12 +462,17 @@ function! bluemoon#command(arg) abort " {{{
     call s:hl_del(args[i :])
   elseif mode ==# 'delall'
     call bluemoon#clear()
+  elseif mode ==# 'check'
+    call bluemoon#check()
   endif
 
   return args
 endfunction " }}}
 
 function! bluemoon#enable() abort " {{{
+  if !bluemoon#check()
+    return
+  endif
   augroup BlueMoon
     autocmd!
     autocmd VimEnter,WinEnter * call s:hl.as_windo().enable_all()
