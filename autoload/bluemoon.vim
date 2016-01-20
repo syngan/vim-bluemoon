@@ -69,6 +69,11 @@ function! bluemoon#check(...) abort " {{{
       let ret = 0
       continue
     endif
+    if str !~# '^[A-Za-z]'
+      call s:echoerr(c . '.colors[' . i . '].name does not start with letters "[a-zA-Z]"')
+      let ret = 0
+      continue
+    endif
     if has_key(name, tolower(str))
       call s:echoerr(c . '.colors[' . name[tolower(str)] . '] and colors[' . i . '] have same "name"')
       let ret = 0

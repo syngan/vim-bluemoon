@@ -38,12 +38,32 @@ function! s:suite.colors() " {{{
   call s:assert.equals(bluemoon#check(bm), 0)
   let bm = {'colors' : [{'group': 'todo', 'name': 'foo_0'}]}
   call s:assert.equals(bluemoon#check(bm), 1)
+  let bm = {'colors' : [{'group': 'todo', 'name': '1'}]}
+  call s:assert.equals(bluemoon#check(bm), 0)
   let bm = {'colors' : [{'group': 'todo', 'name': 'foo-0'}]}
   call s:assert.equals(bluemoon#check(bm), 0)
   let bm = {'colors' : [{'group': 'todo'}, {'group': 'todo'}]}
   call s:assert.equals(bluemoon#check(bm), 0, 'same grp1')
   let bm = {'colors' : [{'group': 'todo'}, {'group': 'toDO'}]}
   call s:assert.equals(bluemoon#check(bm), 0, 'same grp2')
+endfunction " }}}
+
+function! s:suite.keywords() " {{{
+  let b = {'colors' : [{'group': 'todo'}]}
+  let bm = extend(copy(b), {'keywords': 1})
+  call s:assert.equals(bluemoon#check(bm), 0)
+  let bm = extend(copy(b), {'keywords': {}})
+  call s:assert.equals(bluemoon#check(bm), 0)
+  let bm = extend(copy(b), {'keywords': [3]})
+  call s:assert.equals(bluemoon#check(bm), 0)
+  let bm = extend(copy(b), {'keywords': [{}]})
+  call s:assert.equals(bluemoon#check(bm), 0)
+  let bm = extend(copy(b), {'keywords': [{'group': 'todo', 'pattern': 'key'}]})
+  call s:assert.equals(bluemoon#check(bm), 1)
+  let bm = extend(copy(b), {'keywords': [{'pattern': 'key'}]})
+  call s:assert.equals(bluemoon#check(bm), 0)
+  let bm = extend(copy(b), {'keywords': [{'group': 'todo'}]})
+  call s:assert.equals(bluemoon#check(bm), 0)
 endfunction " }}}
 
 let &cpo = s:save_cpo
