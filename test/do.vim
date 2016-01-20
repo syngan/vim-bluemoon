@@ -122,6 +122,21 @@ function! s:suite.nondef_color() " {{{
   call s:test({}, 'delall')
 endfunction " }}}
 
+function! s:suite.tolower() abort " {{{
+  call s:test({}, 'dodo0')
+  BlueMoon hoge rED
+  call s:test({'hoge': 'red'}, "add hoge")
+  BlueMoon foo  Red
+  call s:test({'hoge': 'red', 'foo': 'red'}, "add foo")
+  BlueMoon baa  BlUe
+  call s:test({'hoge': 'red', 'foo': 'red', 'baa': 'blue'}, "add bar")
+  BlueMoon -d rEd
+  call s:test({'baa': 'blue'}, "del red")
+  BlueMoon baa  bluE
+  call s:test({}, "del baa")
+endfunction " }}}
+
+
 let &cpo = s:save_cpo
 unlet s:save_cpo
 
