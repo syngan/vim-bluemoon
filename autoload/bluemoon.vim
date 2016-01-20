@@ -359,6 +359,10 @@ function! bluemoon#command(arg) abort " {{{
 endfunction " }}}
 
 function! bluemoon#enable() abort " {{{
+  augroup BlueMoon
+    autocmd!
+    autocmd VimEnter,WinEnter * call s:hl.as_windo().enable_all()
+  augroup END
   call s:init()
   let s:stat.enabled = 1
 endfunction " }}}
