@@ -69,11 +69,11 @@ function! bluemoon#check(...) abort " {{{
       let ret = 0
       continue
     endif
-    if has_key(name, str)
-      call s:echoerr(c . '.colors[' . name[str] . '] and colors[' . i . '] have same "name"')
+    if has_key(name, tolower(str))
+      call s:echoerr(c . '.colors[' . name[tolower(str)] . '] and colors[' . i . '] have same "name"')
       let ret = 0
     endif
-    let name[str] = i
+    let name[tolower(str)] = i
 
     if has_key(d.colors[i], 'priority') && type(d.colors[i].priority) != type(0)
       call s:echoerr(c . '.colors[' . i . '].priority is not a number')
