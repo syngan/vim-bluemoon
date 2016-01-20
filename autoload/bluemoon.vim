@@ -66,9 +66,22 @@ function! s:colordef_normalize(c, idx) abort " {{{
   endif
 endfunction " }}}
 
+function! s:keywords() abort " {{{
+  if exists('g:bluemoon') && has_key(g:bluemoon, 'keywords')
+    for i in range(len(g:bluemoon.keywords))
+      let k = g:bluemoon.keywords[i]
+      let rname = printf('%s-keyword-%d', k.group, i)
+      let priority = get(k, 'priority', 10)
+      call s:hl.add(rname, k.group, k.pattern, priority)
+      call s:hl.enable(rname)
+    endfor
+  endif
+endfunction " }}}
+
 function! s:init() abort " {{{
   " :hi 実行
   call s:init_def()
+  call s:keywords()
 endfunction " }}}
 
 function! s:echoerr(msg) abort " {{{
@@ -183,7 +196,7 @@ function! s:hl_add(pattern, ...) abort " {{{
   if has_key(s:stat.added_pattn, a:pattern)
     " s:hl_del...?
     let c = s:stat.added_pattn[a:pattern]
-    let rname = printf('%s-%d', c.name, c.cnt)
+    let rname = c.rname
     call s:hl.disable(rname)
     call s:hl.delete(rname)
     unlet s:stat.added_pattn[a:pattern]
@@ -244,6 +257,9 @@ function! bluemoon#clear() abort " {{{
   let s:stat.added_rname = {}
   let s:stat.added_pattn = {}
   let s:stat.counter = 0
+  if s:stat.enabled
+    call s:keywords()
+  endif
 endfunction " }}}
 
 function! s:escape_pattern(str) abort " {{{
@@ -338,8 +354,8 @@ endfunction " }}}
 
 function! bluemoon#disable() abort " {{{
   if s:stat.enabled
-    call bluemoon#clear()
     let s:stat.enabled = 0
+    call bluemoon#clear()
   endif
 endfunction " }}}
 
