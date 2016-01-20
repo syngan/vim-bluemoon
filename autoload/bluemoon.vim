@@ -419,13 +419,23 @@ function! bluemoon#debug(p) abort " {{{
 endfunction " }}}
 
 function! s:show() abort " {{{
+  if !s:stat.enabled
+    return
+  endif
   for c in keys(s:stat.added_pattn)
     let v = s:stat.added_pattn[c]
-    echo printf("%2d:%s\t", v.index, v.name)
+    echo printf("%3d:%s\t", v.index, v.name)
     execute 'echohl' v.group
     echon printf("%s", v.group)
     echohl None
     echon printf("\t%s\t%d", c, v.priority)
+  endfor
+  for v in s:stat.keywords
+    echo "key:\t\t"
+    execute 'echohl' v.group
+    echon printf("%s", v.group)
+    echohl None
+    echon printf("\t%s\t%d", v.pattern, get(v, 'priority', 10))
   endfor
 endfunction " }}}
 
