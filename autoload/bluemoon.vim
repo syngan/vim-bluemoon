@@ -75,8 +75,7 @@ function! s:keywords() abort " {{{
       let k = g:bluemoon.keywords[i]
       let rname = printf('%s-keyword-%d', k.group, i)
       let priority = get(k, 'priority', 10)
-      call s:hl.add(rname, k.group, k.pattern, priority)
-      call s:hl.enable(rname)
+      call s:coasterhl_add_enable(rname, k.group, k.pattern, priority)
     endfor
   endif
 endfunction " }}}
@@ -195,13 +194,23 @@ function! s:rotation() abort " {{{
   return s:stat.counter % len(s:stat.colors)
 endfunction " }}}
 
+function! s:coasterhl_add_enable(rname, group, pattern, priority) abort " {{{
+  call s:hl.add(a:rname, a:group, a:pattern, a:priority)
+  call s:hl.as_windo().enable(a:rname)
+endfunction " }}}
+
+function! s:coasterhl_del_disable(rname) abort " {{{
+  call s:hl.as_windo().disable(a:rname)
+  call s:hl.disable(a:rname)
+  call s:hl.delete(a:rname)
+endfunction " }}}
+
 function! s:hl_add(pattern, ...) abort " {{{
   if has_key(s:stat.added_pattn, a:pattern)
     " s:hl_del...?
     let c = s:stat.added_pattn[a:pattern]
     let rname = c.rname
-    call s:hl.disable(rname)
-    call s:hl.delete(rname)
+    call s:coasterhl_del_disable(rname)
     unlet s:stat.added_pattn[a:pattern]
     call s:dprintf("del rname=%s, pattern=%s", rname, a:pattern)
     return
@@ -218,8 +227,7 @@ function! s:hl_add(pattern, ...) abort " {{{
     let index = -1
   endif
   let rname = printf('%s-%d', name, s:stat.counter)
-  call s:hl.add(rname, group, a:pattern, priority)
-  call s:hl.enable(rname)
+  call s:coasterhl_add_enable(rname, group, a:pattern, priority)
   let d = {'rname': rname, 'pattern': a:pattern, 'index': index,
         \ 'name': name, 'cnt': s:stat.counter, 'group': group, 'priority': priority}
   if !has_key(s:stat.added_rname, name)
@@ -241,8 +249,7 @@ function! s:hl_del(args) abort " {{{
   let i += 1
   if has_key(s:stat.added_rname, name)
     for c in s:stat.added_rname[name]
-      call s:hl.disable(c.rname)
-      call s:hl.delete(c.rname)
+      call s:coasterhl_del_disable(c.rname)
       unlet s:stat.added_pattn[c.pattern]
     endfor
     unlet s:stat.added_rname[name]
@@ -251,8 +258,9 @@ function! s:hl_del(args) abort " {{{
 endfunction " }}}
 
 function! s:hl_clearall(hl) abort " {{{
-  call a:hl.delete_all()
+  call a:hl.as_windo().disable_all()
   call a:hl.disable_all()
+  call a:hl.delete_all()
 endfunction " }}}
 
 function! bluemoon#clear() abort " {{{
