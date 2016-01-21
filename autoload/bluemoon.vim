@@ -20,7 +20,7 @@ endfunction " }}}
 function! bluemoon#check(...) abort " {{{
   if a:0 == 0 && !exists('g:bluemoon')
     call s:echoerr('g:bluemoon is not defined')
-    return 1
+    return 0
   endif
   let d = a:0 > 0 ? a:1 : g:bluemoon
   let c = a:0 > 0 ? 'DEF' : 'g:bluemoon'
@@ -184,7 +184,12 @@ function! s:keywords() abort " {{{
       let priority = get(k, 'priority', 10)
       call s:hl.add(rname, k.group, k.pattern, priority)
     endfor
-    call s:hl.as_windo().enable_all()
+    try
+      let s:reflesh_flag = 0
+      call s:hl.as_windo().enable_all()
+    finally
+      let s:reflesh_flag = 1
+    endtry
     let s:stat.keywords = copy(g:bluemoon.keywords)
     let s:stat.keywordsm = getmatches()
   endif
@@ -305,14 +310,23 @@ function! s:rotation() abort " {{{
 endfunction " }}}
 
 function! s:coasterhl_add_enable(rname, group, pattern, priority) abort " {{{
-  call s:hl.add(a:rname, a:group, a:pattern, a:priority)
-  call s:hl.as_windo().enable(a:rname)
+  try
+    let s:reflesh_flag = 0
+    call s:hl.add(a:rname, a:group, a:pattern, a:priority)
+    call s:hl.as_windo().enable(a:rname)
+  finally
+    let s:reflesh_flag = 1
+  endtry
 endfunction " }}}
 
 function! s:coasterhl_del_disable(rname) abort " {{{
-  call s:hl.as_windo().disable(a:rname)
-  call s:hl.disable(a:rname)
-  call s:hl.delete(a:rname)
+  try
+    let s:reflesh_flag = 0
+    call s:hl.as_windo().disable(a:rname)
+    call s:hl.delete(a:rname)
+  finally
+    let s:reflesh_flag = 1
+  endtry
 endfunction " }}}
 
 function! s:hl_add(pattern, ...) abort " {{{
@@ -322,7 +336,7 @@ function! s:hl_add(pattern, ...) abort " {{{
     let rname = c.rname
     call s:coasterhl_del_disable(rname)
     unlet s:stat.added_pattn[a:pattern]
-    call s:dprintf("del rname=%s, pattern=%s", rname, a:pattern)
+    call s:dprintf("del rname=%s, pattern=/%s/", rname, a:pattern)
     " @TODO added_rname. see s:hl_del()
     return
   endif
@@ -348,7 +362,7 @@ function! s:hl_add(pattern, ...) abort " {{{
   endif
   let s:stat.added_pattn[a:pattern] = d
   let s:stat.counter += 1
-  call s:dprintf('add rname=%s, pattern=[%s]', rname, a:pattern)
+  call s:dprintf('add rname=%s, pattern=/%s/', rname, a:pattern)
 endfunction " }}}
 
 function! s:hl_del(args) abort " {{{
@@ -357,7 +371,12 @@ function! s:hl_del(args) abort " {{{
    throw 'name not found'
   endif
   let name = tolower(a:args[i])
-  let i += 1
+  if name =~# '^[0-9]\+$'
+    if !has_key(s:stat.colorsdict, name)
+      return
+    endif
+    let name = s:stat.colorsdict[name].name
+  endif
   if has_key(s:stat.added_rname, name)
     for c in s:stat.added_rname[name]
       call s:coasterhl_del_disable(c.rname)
@@ -369,9 +388,15 @@ function! s:hl_del(args) abort " {{{
 endfunction " }}}
 
 function! s:hl_clearall(hl) abort " {{{
-  call a:hl.as_windo().disable_all()
-  call a:hl.disable_all()
-  call a:hl.delete_all()
+  try
+    let s:reflesh_flag = 0
+    call a:hl.as_windo().disable_all()
+    call a:hl.disable_all()
+    call a:hl.delete_all()
+    call s:dprintf("delete all")
+  finally
+    let s:reflesh_flag = 1
+  endtry
 endfunction " }}}
 
 function! bluemoon#clear() abort " {{{
@@ -484,13 +509,19 @@ function! bluemoon#command(arg) abort " {{{
   return args
 endfunction " }}}
 
+function! s:hl_reflesh() abort " {{{
+  if s:reflesh_flag
+    call s:hl.as_windo().enable_all()
+  endif
+endfunction " }}}
+
 function! bluemoon#enable() abort " {{{
   if !bluemoon#check()
     return
   endif
   augroup BlueMoon
     autocmd!
-    autocmd VimEnter,WinEnter * call s:hl.as_windo().enable_all()
+    autocmd VimEnter,WinEnter * call s:hl_reflesh()
   augroup END
   call s:init()
   let s:stat.enabled = 1
@@ -500,6 +531,11 @@ function! bluemoon#disable() abort " {{{
   if s:stat.enabled
     let s:stat.enabled = 0
     call bluemoon#clear()
+
+    augroup BlueMoon
+      autocmd!
+    augroup END
+
   endif
 endfunction " }}}
 
