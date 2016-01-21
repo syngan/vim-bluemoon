@@ -346,7 +346,7 @@ function! s:hl_add(pattern, ...) abort " {{{
     call s:coasterhl_del_disable(rname)
     unlet s:stat.added_pattn[a:pattern]
     call s:dprintf("del rname=%s, pattern=/%s/", rname, a:pattern)
-    " @TODO added_rname. see s:hl_del()
+    call filter(s:stat.added_rname[c.name], 'v:val.rname !=# rname')
     return
   endif
 
