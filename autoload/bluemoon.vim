@@ -347,7 +347,9 @@ function! s:hl_add(pattern, ...) abort " {{{
     unlet s:stat.added_pattn[a:pattern]
     call s:dprintf("del rname=%s, pattern=/%s/", rname, a:pattern)
     call filter(s:stat.added_rname[c.name], 'v:val.rname !=# rname')
-    return
+    if a:0 == 0 || tolower(a:1) ==# c.name || a:1 ==# c.index
+      return
+    endif
   endif
 
   let name = (a:0 > 0) ? tolower(a:1) : s:rotation()
@@ -439,11 +441,14 @@ function! s:get_selected_text() abort " {{{
 endfunction " }}}
 
 function! bluemoon#cword(mode) abort " {{{
-  let idx = v:count
   let pattern =
         \ a:mode == 'n' ? printf('\<%s\>', expand('<cword>')) :
         \ a:mode == 'v' ? s:escape_pattern(s:get_selected_text()) : ''
-  return bluemoon#command(printf('/%s/ %d', pattern, idx))
+  if v:count == 0
+    call s:hl_add(pattern)
+  else
+    call s:hl_add(pattern, v:count)
+  endif
 endfunction " }}}
 
 function! bluemoon#debug(p) abort " {{{

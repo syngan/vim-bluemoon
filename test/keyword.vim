@@ -94,7 +94,7 @@ function! s:suite.do1() " {{{
   call s:test({'hoge': 'red', 'foo': 'red', 'baa': 'blue'}, "add bar", 1)
   BlueMoon -d red
   call s:test({'baa': 'blue'}, "del red", 1)
-  BlueMoon baa    2
+  BlueMoon baa
   call s:test({}, "del baa", 1)
 endfunction " }}}
 
