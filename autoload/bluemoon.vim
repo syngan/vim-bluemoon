@@ -58,6 +58,11 @@ function! bluemoon#check(...) abort " {{{
       let ret = 0
       continue
     endif
+    if !hlexists(d.colors[i].group)
+      call s:echoerr(c . '.colors[' . i . '].group does not exist. see :highlight')
+      let ret = 0
+      continue
+    endif
     if type(get(d.colors[i], 'name', '')) != type('')
       call s:echoerr(c . '.colors[' . i . '].name is not a String')
       let ret = 0
@@ -116,6 +121,11 @@ function! bluemoon#check(...) abort " {{{
         call s:echoerr(c . '.keywords[' . i . '].group does not consist of "[a-zA-Z0-9_]\+"')
         let ret = 0
       endif
+      if !hlexists(d.keywords[i].group)
+        call s:echoerr(c . '.keywords[' . i . '].group does not exist. see :highlight')
+        let ret = 0
+        continue
+      endif
       if has_key(d.keywords[i], 'priority') && type(d.keywords[i].priority) != type(0)
         call s:echoerr(c . '.keywords[' . i . '].priority is not a number')
         let ret = 0
@@ -148,7 +158,6 @@ function! s:init_def() abort " {{{
       call s:echoerr('invalid definition: colors is not a List')
       return
   endif
-  " @TODO hlexists()
   let s:stat.colorsdict = {}
   for i in range(len(s:stat.colors))
     let s:stat.colors[i] = s:colordef_normalize(s:stat.colors[i], i)

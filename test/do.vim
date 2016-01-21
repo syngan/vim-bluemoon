@@ -32,6 +32,15 @@ let s:lines = [
       \ 'strwidthpart strwidthpart_reverse wcswidth',
       \]
 
+function! s:suite.after() abort " {{{
+  highlight clear BM_red
+  highlight clear BM_brown
+  highlight clear BM_blue
+  highlight clear BM_cyan
+  highlight clear BM_green
+  highlight clear BM_unused
+endfunction " }}}
+
 function! s:suite.before_each() " {{{
   call bluemoon#enable()
   new

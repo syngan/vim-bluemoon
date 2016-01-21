@@ -27,6 +27,15 @@ let g:bluemoon = {'colors': [
 call delete('/tmp/themis.log')
 endfunction " }}}
 
+function! s:suite.after() abort " {{{
+  highlight clear BM_red
+  highlight clear BM_brown
+  highlight clear BM_blue
+  highlight clear BM_cyan
+  highlight clear BM_green
+  highlight clear BM_unused
+endfunction " }}}
+
 let s:lines = [
       \ 'hoge foo baa hoge foo bar',
       \ 'hogehgoe fofofo',
