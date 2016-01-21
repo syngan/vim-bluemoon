@@ -19,26 +19,21 @@ endfunction " }}}
 
 function! bluemoon#check(...) abort " {{{
   if a:0 == 0 && !exists('g:bluemoon')
-    call s:echoerr('g:bluemoon is not defined')
-    return 0
+    return s:echoerr('g:bluemoon is not defined')
   endif
   let d = a:0 > 0 ? a:1 : g:bluemoon
   let c = a:0 > 0 ? 'DEF' : 'g:bluemoon'
   if type(d) != type({})
-    call s:echoerr(c . ' is not a dictionary')
-    return 0
+    return s:echoerr(c . ' is not a dictionary')
   endif
   if !has_key(d, 'colors')
-    call s:echoerr(c . ' does not have "colors"')
-    return 0
+    return s:echoerr(c . ' does not have "colors"')
   endif
   if type(d.colors) != type([])
-    call s:echoerr(c . '.colors is not a list')
-    return 0
+    return s:echoerr(c . '.colors is not a list')
   endif
   if len(d.colors) == 0
-    call s:echoerr(c . '.colors does not have a member')
-    return 0
+    return s:echoerr(c . '.colors does not have a member')
   endif
   let ret = 1
   let name = {}
@@ -93,8 +88,7 @@ function! bluemoon#check(...) abort " {{{
 
   if has_key(d, 'keywords')
     if type(d.keywords) != type([])
-      call s:echoerr(c . '.keywords is not a list')
-      return 0
+      return s:echoerr(c . '.keywords is not a list')
     endif
 
     for i in range(len(d.keywords))
@@ -214,6 +208,7 @@ function! s:echoerr(msg) abort " {{{
   echohl ErrorMsg
   echomsg 'bluemoon: ' . a:msg
   echohl None
+  return 0
 endfunction " }}}
 
 function! s:parse_pattern(str) abort " {{{
@@ -352,6 +347,9 @@ function! s:hl_add(pattern, ...) abort " {{{
     endif
   endif
 
+  if a:pattern ==# ''
+    return s:echoerr('invalid argument')
+  endif
   let name = (a:0 > 0) ? tolower(a:1) : s:rotation()
   let priority = (a:0 > 1) ? a:2 : 10
   if has_key(s:stat.colorsdict, name)
@@ -376,12 +374,8 @@ function! s:hl_add(pattern, ...) abort " {{{
   call s:dprintf('add rname=%s, pattern=/%s/', rname, a:pattern)
 endfunction " }}}
 
-function! s:hl_del(args) abort " {{{
-  let i = 0
-  if i >= len(a:args)
-   throw 'name not found'
-  endif
-  let name = tolower(a:args[i])
+function! s:hl_del(name) abort " {{{
+  let name = tolower(a:name)
   if name =~# '^[0-9]\+$'
     if !has_key(s:stat.colorsdict, name)
       return
@@ -513,14 +507,23 @@ function! bluemoon#command(arg) abort " {{{
       call call('s:hl_add', args[i :])
     endif
   elseif mode ==# 'del'
-    call s:hl_del(args[i :])
+    if i + 1 != len(args)
+      return s:echoerr('Usage: Bluemoon -d {name}')
+    endif
+    call call('s:hl_del', args[i :])
   elseif mode ==# 'delall'
+    if i != len(args)
+      return s:echoerr('Usage: Bluemoon -D')
+    endif
     call bluemoon#clear()
   elseif mode ==# 'check'
+    if i != len(args)
+      return s:echoerr('Usage: Bluemoon -c')
+    endif
     call bluemoon#check()
   endif
 
-  return args
+  return 1
 endfunction " }}}
 
 function! s:hl_reflesh() abort " {{{
