@@ -69,6 +69,7 @@ function! s:test(dict, msg) abort " {{{
 endfunction " }}}
 
 function! s:suite.do1() " {{{
+  BlueMoon -c
   call s:test({}, 'dodo0')
   BlueMoon hoge red
   call s:test({'hoge': 'red'}, "add hoge")
@@ -78,7 +79,7 @@ function! s:suite.do1() " {{{
   call s:test({'hoge': 'red', 'foo': 'red', 'baa': 'blue'}, "add bar")
   BlueMoon -d red
   call s:test({'baa': 'blue'}, "del red")
-  BlueMoon baa    2
+  BlueMoon -d 1
   call s:test({}, "del baa")
 endfunction " }}}
 
@@ -90,7 +91,7 @@ function! s:suite.delall() " {{{
   call s:test({}, 'dodo2')
   BlueMoon hoge red
   call s:test({'hoge': 'red'}, 'dodo3')
-  BlueMoon hoge red
+  BlueMoon hoge
   call s:test({}, 'dodo4')
   BlueMoon hoge red
   call s:test({'hoge': 'red'}, 'dodo5')
