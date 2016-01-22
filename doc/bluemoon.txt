@@ -1,0 +1,105 @@
+*bluemoon.txt*	Operator to replace text with register content
+
+CONTENTS					*bluemoon-contents*
+
+Introduction            |bluemoon-introduction|
+Interface               |bluemoon-interface|
+  Key Mappings          |bluemoon-mappings|
+  Commands              |bluemoon-commands|
+  Functions             |bluemoon-functions|
+  Variables             |bluemoon-variables|
+Examples                |bluemoon-examples|
+
+
+==============================================================================
+INTRODUCTION				       *bluemoon-introduction*
+
+==============================================================================
+INTERFACE					*bluemoon-interface*
+
+------------------------------------------------------------------------------
+KEY MAPPINGS				       *bluemoon-mappings*
+
+nv	<Plug>(bluemoon-cword)			*<Plug>(bluemoon-cword)*
+		Highlight |<cword>|.
+		Same as ":BlueMoon <cword> {count}".
+
+nv	<Plug>(bluemoon-clear)			*<Plug>(bluemoon-clear)*
+		Clear all highlight.
+
+------------------------------------------------------------------------------
+COMMANDS				       *bluemoon-commands*
+
+:BlueMoon                                             *BlueMoon*
+	List {pattern}s
+:BlueMoon /{pattern}/ [{name}  [{priority}]]
+:BlueMoon /{pattern}/ [{index} [{priority}]]
+	Delete {pattern} if added and same {name}/{index},
+	Update {pattern} if added and not same {name}/{index},
+	Add {pattern} otherwise.
+	See |matchadd()| for details.
+:BlueMoon -d {name}
+:BlueMoon -d {index}
+	Delete {name}
+:BlueMoon -D
+	Delete all
+:BlueMoon -c
+	Check definition
+
+------------------------------------------------------------------------------
+FUNCTIONS				       *bluemoon-functions*
+
+bluemoon#enable()
+
+bluemoon#disable()
+
+------------------------------------------------------------------------------
+VARIABLES				       *bluemoon-variables*
+
+g:bluemoon#enable_at_startup
+	Default: 0
+
+g:bluemoon
+	g:bluemoon = {
+	  "colors": list of colors,      " required
+	  "keywords": list of keywords,  " option
+	}
+	color := {
+		"group": {group}, " see |{group-name}|, [a-zA-Z0-9_]\+
+		"name": {name},   " any [a-zA-Z][a-zA-Z0-9_]*, option (self.group)
+		"priority": {priority} " option (10)
+	}
+	keywords := {
+		"pattern": {pattern},
+		"group": {group}, " see |{group-name}|
+		"priority": {priority} " option (10)
+	}
+
+
+==============================================================================
+EXAMPLES					*bluemoon-examples*
+
+.vimrc
+>
+	nmap <Space>m	<Plug>(bluemoon-cword)
+	xmap <Space>m	<Plug>(bluemoon-cword)
+	nmap <Space>M	<Plug>(bluemoon-clear)
+	xmap <Space>M	<Plug>(bluemoon-clear)
+
+	" see |:highlight| for details.
+	let s:clist = ['darkred', 'darkgreen', 'brown', 'darkblue',
+				\  'darkmagenta', 'darkcyan', 'darkgray', 'red',
+				\  'green', 'blue', 'magenta', 'cyan']
+	for s:c in s:clist
+		execute printf('highlight BM_%s gui=bold ctermfg=white ctermbg=%s', s:c, s:c)
+	endfor
+	unlet s:c
+
+	let g:bluemoon#enable_at_startup = 1
+	let g:bluemoon = {}
+	let g:bluemoon.colors = map(copy(s:clist), '{"name": v:val, "group": "BM_" . v:val}')
+	let g:bluemoon.keyword = [{'pattern': '\<hoge\>', 'group': 'BM_cyan'}]
+<
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:fen:fdl=0:fdm=marker:
