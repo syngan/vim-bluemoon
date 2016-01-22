@@ -340,11 +340,14 @@ function! s:hl_add(pattern, ...) abort " {{{
     let rname = c.rname
     call s:coasterhl_del_disable(rname)
     unlet s:stat.added_pattn[a:pattern]
-    call s:dprintf("del rname=%s, pattern=/%s/", rname, a:pattern)
     call filter(s:stat.added_rname[c.name], 'v:val.rname !=# rname')
     if a:0 == 0 || tolower(a:1) ==# c.name || a:1 ==# c.index
+      call s:dprintf("del rname=%s, pattern=/%s/", rname, a:pattern)
       return
     endif
+    let cmd = 'upd'
+  else
+    let cmd = 'add'
   endif
 
   if a:pattern ==# ''
@@ -371,7 +374,7 @@ function! s:hl_add(pattern, ...) abort " {{{
   endif
   let s:stat.added_pattn[a:pattern] = d
   let s:stat.counter += 1
-  call s:dprintf('add rname=%s, pattern=/%s/', rname, a:pattern)
+  call s:dprintf('%s rname=%s, pattern=/%s/', cmd, rname, a:pattern)
 endfunction " }}}
 
 function! s:hl_del(name) abort " {{{
@@ -457,18 +460,18 @@ function! s:show() abort " {{{
   endif
   for c in keys(s:stat.added_pattn)
     let v = s:stat.added_pattn[c]
-    echo printf("%3d:%s\t", v.index, v.name)
     execute 'echohl' v.group
-    echon printf("%s", v.group)
+    echo printf("%3d", v.index)
     echohl None
-    echon printf("\t%s\t%d", c, v.priority)
+    echon printf(" %-18s %-18s %-13s %d", v.name, v.group, c, v.priority)
   endfor
   for v in s:stat.keywords
-    echo "key:\t\t"
     execute 'echohl' v.group
-    echon printf("%s", v.group)
+    echo 'key'
     echohl None
-    echon printf("\t%s\t%d", v.pattern, get(v, 'priority', 10))
+    let c = v.pattern
+    let v.priority = get(v, 'priority', 10)
+    echon printf(" %-18s %-18s %-13s %d", '', v.group, c, v.priority)
   endfor
 endfunction " }}}
 
