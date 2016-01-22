@@ -475,6 +475,35 @@ function! s:show() abort " {{{
   endfor
 endfunction " }}}
 
+function! bluemoon#complete(arg, cmd, pos) abort " {{{
+  let args = s:getopt(a:cmd)[1 :]
+  if len(args) == 0
+    return ['-d', '-D'] + map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
+  elseif len(args) == 1
+    if a:arg ==# '-D'
+      return []
+    elseif a:arg ==# '-d'
+      if a:pos == len(a:cmd)
+        return ['-d', '-D']
+      endif
+      return keys(s:stat.added_rname)
+    else
+      " pattern
+      if a:arg == '' && a:pos == len(a:cmd)
+        " @TODO copy??
+        return map(deepcopy(s:stat.colors), 'v:val.name')
+      endif
+    endif
+  elseif len(args) == 2 && args[0] !~# '^-' && a:arg !=# ''
+    if len(a:cmd) - a:pos < len(args[1])
+      " @TODO copy??
+      return filter(map(deepcopy(s:stat.colors), 'v:val.name'), 'v:val =~# "^" . a:arg')
+    endif
+  endif
+
+  return []
+endfunction " }}}
+
 " BlueMoon {pattern} [name] [priority]  " add / del pattern
 " BlueMoon -d {name}                    " delete {name}
 " BlueMoon -D                           " delete all
