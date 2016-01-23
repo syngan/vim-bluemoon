@@ -3,7 +3,7 @@ scriptencoding utf-8
 let s:save_cpo = &cpo
 set cpo&vim
 
-let s:stat = {'enabled': 0, 'added_pattn': {}}
+let s:stat = {'enabled': 0, 'added_pattn': {}, 'lock': 0}
 
 let s:hl = vital#of('bluemoon').import('Coaster.Highlight')
 
@@ -187,12 +187,14 @@ function! s:keywords() abort " {{{
       let priority = get(k, 'priority', 10)
       call s:hl.add(rname, k.group, k.pattern, priority)
     endfor
-    try
-      let s:reflesh_flag = 0
-      call s:hl.as_windo().enable_all()
-    finally
-      let s:reflesh_flag = 1
-    endtry
+    if !s:stat.lock
+      try
+        let s:reflesh_flag = 0
+        call s:hl.as_windo().enable_all()
+      finally
+        let s:reflesh_flag = 1
+      endtry
+    endif
     let s:stat.keywords = copy(g:bluemoon.keywords)
     let s:stat.keywordsm = getmatches()
   endif
@@ -317,7 +319,9 @@ function! s:coasterhl_add_enable(rname, group, pattern, priority) abort " {{{
   try
     let s:reflesh_flag = 0
     call s:hl.add(a:rname, a:group, a:pattern, a:priority)
-    call s:hl.as_windo().enable(a:rname)
+    if !s:stat.lock
+      call s:hl.as_windo().enable(a:rname)
+    endif
   finally
     let s:reflesh_flag = 1
   endtry
@@ -396,6 +400,9 @@ function! s:hl_del(name) abort " {{{
 endfunction " }}}
 
 function! s:hl_clearall(hl) abort " {{{
+  if s:stat.lock
+    return
+  endif
   try
     let s:reflesh_flag = 0
     call a:hl.as_windo().disable_all()
@@ -475,12 +482,25 @@ function! s:show() abort " {{{
   endfor
 endfunction " }}}
 
+function! bluemoon#lock() abort " {{{
+  let s:reflesh_flag = 0
+  if s:stat.lock
+    call s:hl.as_windo().enable_all()
+    call s:dprintf('unlock: enable all highlight')
+  else
+    call s:hl.as_windo().disable_all()
+    call s:dprintf('lock:  disable all highlight')
+  endif
+  let s:reflesh_flag = 1
+  let s:stat.lock = 1 - s:stat.lock
+endfunction " }}}
+
 function! bluemoon#complete(arg, cmd, pos) abort " {{{
   let args = s:getopt(a:cmd)[1 :]
   if len(args) == 0
-    return ['-d', '-D'] + map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
+    return ['-d', '-D', '-l', '-c'] + map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
   elseif len(args) == 1
-    if a:arg ==# '-D'
+    if a:arg =~# '-[lcD]'
       return []
     elseif a:arg ==# '-d'
       if a:pos == len(a:cmd)
@@ -524,6 +544,9 @@ function! bluemoon#command(arg) abort " {{{
       let i += 1
     elseif args[i] == '-p'
       PP s:stat
+    elseif args[i] == '-l'
+      let mode = 'lock'
+      let i += 1
     elseif args[i] == '-c'
       let mode = 'check'
       let i += 1
@@ -548,6 +571,11 @@ function! bluemoon#command(arg) abort " {{{
       return s:echoerr('Usage: Bluemoon -D')
     endif
     call bluemoon#clear()
+  elseif mode ==# 'lock'
+    if i != len(args)
+      return s:echoerr('Usage: Bluemoon -l')
+    endif
+    call bluemoon#lock()
   elseif mode ==# 'check'
     if i != len(args)
       return s:echoerr('Usage: Bluemoon -c')
@@ -559,7 +587,7 @@ function! bluemoon#command(arg) abort " {{{
 endfunction " }}}
 
 function! s:hl_reflesh() abort " {{{
-  if s:reflesh_flag
+  if s:reflesh_flag && !s:stat.lock
     call s:hl.as_windo().enable_all()
   endif
 endfunction " }}}
@@ -574,6 +602,7 @@ function! bluemoon#enable() abort " {{{
   augroup END
   call s:init()
   let s:stat.enabled = 1
+  let s:stat.lock = 0
 endfunction " }}}
 
 function! bluemoon#disable() abort " {{{
