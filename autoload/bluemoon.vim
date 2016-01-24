@@ -580,7 +580,10 @@ function! bluemoon#command(arg) abort " {{{
     if i != len(args)
       return s:echoerr('Usage: Bluemoon -c')
     endif
-    call bluemoon#check()
+    if bluemoon#check()
+      echo printf('bluemon: ok, %d colors and %d keywords are defined.',
+            \ len(g:bluemoon.colors), len(get(g:bluemoon, 'keywords', 0)))
+    endif
   endif
 
   return 1
