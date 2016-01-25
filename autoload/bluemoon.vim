@@ -259,7 +259,7 @@ function! s:getopt(str) abort " {{{
     let str = matchstr(str, '^\s*\zs.*$')
     if str =~# '^[''"]'
       let typ = 1
-      let arg = matchstr(str, printf('.*\ze\\@<!%s', str[0]), 1)
+      let arg = matchstr(str, printf('.*\ze\\\@<!%s', str[0]), 1)
       let str = str[strlen(arg) + 2 :]
       let opt[opt[1]] = 1 - opt[1]
       " spece....?
@@ -355,7 +355,7 @@ function! s:hl_add(pattern, ...) abort " {{{
   endif
 
   if a:pattern ==# ''
-    return s:echoerr('invalid argument')
+    return s:echoerr('invalid argument: empty pattern')
   endif
   let name = (a:0 > 0) ? tolower(a:1) : s:rotation()
   let priority = (a:0 > 1) ? a:2 : 10
