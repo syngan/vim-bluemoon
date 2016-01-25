@@ -425,7 +425,10 @@ function! bluemoon#clear() abort " {{{
 endfunction " }}}
 
 function! s:escape_pattern(str) abort " {{{
-  return escape(a:str, '~"/\.^$[]*')
+  let str = a:str
+  let str = escape(str, '~"/\.^$[]*')
+  let str = substitute(str, "\n", '\\n', 'g')
+  return str
 endfunction " }}}
 
 function! s:get_selected_text() abort " {{{
