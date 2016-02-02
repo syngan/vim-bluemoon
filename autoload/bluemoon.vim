@@ -381,22 +381,32 @@ function! s:hl_add(pattern, ...) abort " {{{
   call s:dprintf('%s rname=%s, pattern=/%s/', cmd, rname, a:pattern)
 endfunction " }}}
 
-function! s:hl_del(name) abort " {{{
-  let name = tolower(a:name)
-  if name =~# '^[0-9]\+$'
-    if !has_key(s:stat.colorsdict, name)
-      return
+function! s:hl_del(...) abort " {{{
+  let pm = ''
+  for name in a:000
+    let name = tolower(name)
+    if name =~# '^[0-9]\+$'
+      if !has_key(s:stat.colorsdict, name)
+        continue
+      endif
+      let name = s:stat.colorsdict[name].name
     endif
-    let name = s:stat.colorsdict[name].name
+    if has_key(s:stat.added_rname, name)
+      let index = -1
+      for c in s:stat.added_rname[name]
+        call s:coasterhl_del_disable(c.rname)
+        unlet s:stat.added_pattn[c.pattern]
+        let index = c.index
+      endfor
+      let pm .= printf('%s[%d] ', name, index)
+      unlet s:stat.added_rname[name]
+    endif
+  endfor
+  if pm ==# ''
+    call s:dprintf('del nothing')
+  else
+    call s:dprintf('del name=%s', pm)
   endif
-  if has_key(s:stat.added_rname, name)
-    for c in s:stat.added_rname[name]
-      call s:coasterhl_del_disable(c.rname)
-      unlet s:stat.added_pattn[c.pattern]
-    endfor
-    unlet s:stat.added_rname[name]
-  endif
-  call s:dprintf("del name=%s", name)
 endfunction " }}}
 
 function! s:hl_clearall(hl) abort " {{{
@@ -568,8 +578,8 @@ function! bluemoon#command(arg) abort " {{{
       call call('s:hl_add', args[i :])
     endif
   elseif mode ==# 'del'
-    if i + 1 != len(args)
-      return s:echoerr('Usage: Bluemoon -d {name}')
+    if i == len(args)
+      return s:echoerr('Usage: Bluemoon -d {name} ...')
     endif
     call call('s:hl_del', args[i :])
   elseif mode ==# 'delall'
