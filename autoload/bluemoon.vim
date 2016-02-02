@@ -504,10 +504,13 @@ function! bluemoon#complete(arg, cmd, pos) abort " {{{
     return ['-d', '-D', '-l', '-c'] + map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
   elseif len(args) == 1
     if a:arg =~# '-[lcD]'
+      if a:pos == len(a:cmd)
+        return ['-d', '-D', '-l', '-c']
+      endif
       return []
     elseif a:arg ==# '-d'
       if a:pos == len(a:cmd)
-        return ['-d', '-D']
+        return ['-d', '-D', '-l', '-c']
       endif
       return keys(s:stat.added_rname)
     else
