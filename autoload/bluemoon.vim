@@ -213,97 +213,103 @@ function! s:echoerr(msg) abort " {{{
   return 0
 endfunction " }}}
 
-function! s:parse_pattern(str) abort " {{{
-  let str = matchstr(a:str, '^\s*\zs.*$')
-  if str ==# ''
-    return ['', '']
-  elseif str =~# '^\i\S\+$'
-    return [str, '']
-  elseif str =~# '^\i'
+function! s:parse_pattern(str, index) abort " {{{
+  let index = match(a:str, '^\s*\zs.*$', a:index)
+  if index < 0
+    return ['', -1]
+  elseif match(a:str, '^\i\S\+$', index) >= 0
+    return [a:str[index : ], len(a:str)]
+  elseif a:str[index] =~# '\i'
     " 次の空白までが pattern
-    let idx = match(str, '\s')
-    let pattern = str[: idx-1]
-    let str = matchstr(str[idx : ], '^\s*\zs.*$')
-    return [pattern, str]
+    let idx = match(a:str, '\s', index)
+    let pattern = a:str[index : idx-1]
+    return [pattern, idx]
   else
-    let delim = str[0]
-    let idx = 1
+    let delim = a:str[index]
+    let idx = index  + 1
     let pattern = ''
-    while idx < len(str)
-      if str[idx] ==# delim
+    while idx < len(a:str)
+      if a:str[idx] ==# delim
         break
-      elseif str[idx] == '\'
-        if str[idx+1] ==# delim
+      elseif a:str[idx] == '\'
+        if a:str[idx+1] ==# delim
           let pattern .= delim
         else
-          let pattern .= str[idx : idx+1]
+          let pattern .= a:str[idx : idx+1]
         endif
-        let idx = idx + 2
+        let idx += 2
       else
-        let pattern .= str[idx]
-        let idx = idx + 1
+        let pattern .= a:str[idx]
+        let idx += 1
       endif
     endwhile
-    let str = matchstr(str[idx+1: ], '^\s*\zs.*$')
-    return [pattern, str]
+    let index = match(a:str, '^\s*\zs.*$', idx+1)
+    return [pattern, index]
   endif
 endfunction " }}}
 
-function! s:getopt(str) abort " {{{
+function! s:getopt(str, ...) abort " {{{
+  let a = s:parse_args(a:str)
+  return map(a, 'v:val[0]')
+endfunction " }}}s:parse_args(a:str)
+
+function! s:parse_args(str) abort " {{{
   let str = a:str
+  lockvar str
   let args = []
   " opt[0] = 1 if option_end
   " opt[1] = 1 if option_in
   let opt = [0, 0]
-  while str !~# '^\s*$'
-    let str = matchstr(str, '^\s*\zs.*$')
-    if str =~# '^[''"]'
-      let typ = 1
-      let arg = matchstr(str, printf('.*\ze\\\@<!%s', str[0]), 1)
-      let str = str[strlen(arg) + 2 :]
+  let index = 0
+  let slen = strlen(str)
+  while index < slen
+    let index = match(str, '^\s*\zs.*$', index)
+    if str[index] =~# '^[''"]'
+      let arg = [matchstr(str, printf('.*\ze\\\@<!%s', str[index]), index + 1), index, '"']
+      let index += strlen(arg[0]) + 2
       let opt[opt[1]] = 1 - opt[1]
       " spece....?
-    elseif str =~# '^`='
-      let typ = 0
-      let arg = matchstr(str, '.*\ze`', 2)
-      let str = str[strlen(arg) + 3 :]
+    elseif match(str,'^`=.*`', index) >= 0
+      let arg = [matchstr(str, '.*\ze`', index + 2), index, '`']
+      let index += strlen(arg[0]) + 3
       let opt[opt[1]] = 1 - opt[1]
-    elseif str[0] ==# '-' && !opt[0]
+    elseif str[index] ==# '-' && !opt[0]
       " option.
-      let typ = 1
-      if str ==# '-'
-        let arg = str
-        let str = ''
-      elseif str[1] !=# '-'
-        let arg = str[: 1]
-        let str = str[2 :]
+      if index + 1 == slen
+        let arg = ['-', index, '-']
+        let index += 1
+      elseif str[index + 1] !=# '-'
+        let arg = [str[index : index + 1], index, '-']
+        let index += 2
         let opt[1] = 1
       else
         " @TODO
       endif
-    elseif str[0] !~# '\i'
+    elseif str[index] !~# '\i'
       " pattern
-      let [arg, str] = s:parse_pattern(str)
-      let typ = 1
+      let [arg_, idx] = s:parse_pattern(a:str, index) " @TODO
+      let arg = [arg_, index, '/']
+      let index = idx
       let opt[opt[1]] = 1 - opt[1]
     else
-      let typ = 2
-      let arg = matchstr(str, '\S\+')
-      let str = str[strlen(arg) :]
+      let arg = [matchstr(str, '\S\+', index), index, 'v']
+      let index += strlen(arg[0])
     endif
-    if typ != 0
+    if arg[2] !=# '`'
       call add(args, arg)
     else
-      let e = eval(arg)
+      let e = eval(arg[0])
       if type(e) == type([])
+        let e = map(e, '[v:val, arg[1], arg[2]]')
         let args += e
       else
-        call add(args, e)
+        call add(args, [e, arg[1], arg[2]])
       endif
       unlet e
     endif
   endwhile
 
+  unlock str
   return args
 endfunction " }}}
 
@@ -509,18 +515,16 @@ function! bluemoon#lock() abort " {{{
 endfunction " }}}
 
 function! bluemoon#complete(arg, cmd, pos) abort " {{{
+  let opts = ['-d', '-D', '-l', '-c']
   let args = s:getopt(a:cmd)[1 :]
   if len(args) == 0
-    return ['-d', '-D', '-l', '-c'] + map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
+    return opts + map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
+  elseif a:arg =~# '^-'
+    return opts
   elseif len(args) == 1
-    if a:arg =~# '-[lcD]'
+    if a:arg ==# '-d'
       if a:pos == len(a:cmd)
-        return ['-d', '-D', '-l', '-c']
-      endif
-      return []
-    elseif a:arg ==# '-d'
-      if a:pos == len(a:cmd)
-        return ['-d', '-D', '-l', '-c']
+        return opts
       endif
       return keys(s:stat.added_rname)
     else
