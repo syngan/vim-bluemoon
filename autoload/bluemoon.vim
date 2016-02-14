@@ -248,10 +248,34 @@ function! s:parse_pattern(str, index) abort " {{{
   endif
 endfunction " }}}
 
-function! s:getopt(str, ...) abort " {{{
+function! s:getopt(str, prm) abort " {{{
   let a = s:parse_args(a:str)
-  return map(a, 'v:val[0]')
-endfunction " }}}s:parse_args(a:str)
+  let args = []
+  let i = 0
+  while i < len(a)
+    if a[i][2] ==# '-'
+      let idx = match(a:prm, a[i][0])
+      if idx < 0
+        throw printf('getopt: option -%s not recognized', a[i][0])
+      elseif idx != match(a:prm, a[i][0] . ':', idx)
+        call add(args, [a[i][0], ''])
+        let i += 1
+      elseif i + 1 == len(a) || a[i+1][2][0] ==# '-'
+        throw printf('getopt: option -%s requires argument', a[i][0])
+      else
+        call add(args, [a[i][0], a[i+1][0]])
+        let i += 2
+      endif
+    elseif a[i][2] ==# '--'
+      let i += 1
+      break
+    else
+      break
+    endif
+  endwhile
+
+  return [args, map(a[i : ], 'v:val[0]')]
+endfunction " }}}
 
 function! s:parse_args(str) abort " {{{
   let str = a:str
@@ -279,11 +303,13 @@ function! s:parse_args(str) abort " {{{
         let arg = ['-', index, '-']
         let index += 1
       elseif str[index + 1] !=# '-'
-        let arg = [str[index : index + 1], index, '-']
+        let arg = [str[index + 1], index, '-']
         let index += 2
         let opt[1] = 1
       else
-        " @TODO
+        let arg = ['--', index, '--']
+        let index += 2
+        let opt[opt[1]] = 1 - opt[1]
       endif
     elseif str[index] !~# '\i'
       " pattern
@@ -516,7 +542,8 @@ endfunction " }}}
 
 function! bluemoon#complete(arg, cmd, pos) abort " {{{
   let opts = ['-d', '-D', '-l', '-c']
-  let args = s:getopt(a:cmd)[1 :]
+  let args = s:parse_args(a:cmd)[1 :]
+  let args = map(args, 'v:val[0]')
   if len(args) == 0
     return opts + map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
   elseif a:arg =~# '^-'
@@ -552,52 +579,52 @@ function! bluemoon#command(arg) abort " {{{
   if !s:stat.enabled
     return
   endif
-  let args = s:getopt(a:arg)
-  let i = 0
+  try
+    let [opts, args] = s:getopt(a:arg, 'dDplc')
+  catch /getopt/
+    call s:echoerr(substitute(v:exception, '^.*getopt: ', '', ''))
+    return
+  endtry
   let mode = 'add_or_show'
-  while i < len(args)
-    if args[i] == '-d'
+  for [o,_] in opts
+    if o ==# 'd'
       let mode = 'del'
-      let i += 1
-    elseif args[i] == '-D'
+    elseif o ==# 'D'
       let mode = 'delall'
-      let i += 1
-    elseif args[i] == '-p'
+    elseif o ==# 'p'
       PP s:stat
-    elseif args[i] == '-l'
+    elseif o ==# 'l'
       let mode = 'lock'
-      let i += 1
-    elseif args[i] == '-c'
+    elseif o ==# 'c'
       let mode = 'check'
-      let i += 1
     else
       break
     endif
-  endwhile
+  endfor
 
   if mode ==# 'add_or_show'
     if len(args) == 0
       call s:show()
     else
-      call call('s:hl_add', args[i :])
+      call call('s:hl_add', args)
     endif
   elseif mode ==# 'del'
-    if i == len(args)
+    if len(args) == 0
       return s:echoerr('Usage: Bluemoon -d {name} ...')
     endif
-    call call('s:hl_del', args[i :])
+    call call('s:hl_del', args)
   elseif mode ==# 'delall'
-    if i != len(args)
+    if len(args) != 0
       return s:echoerr('Usage: Bluemoon -D')
     endif
     call bluemoon#clear()
   elseif mode ==# 'lock'
-    if i != len(args)
+    if len(args) != 0
       return s:echoerr('Usage: Bluemoon -l')
     endif
     call bluemoon#lock()
   elseif mode ==# 'check'
-    if i != len(args)
+    if len(args) != 0
       return s:echoerr('Usage: Bluemoon -c')
     endif
     if bluemoon#check()
