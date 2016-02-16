@@ -287,8 +287,10 @@ function! s:parse_args(str) abort " {{{
   let index = 0
   let slen = strlen(str)
   while index < slen
-    let index = match(str, '^\s*\zs.*$', index)
-    if str[index] =~# '^[''"]'
+    let index = match(str, '^\s*\zs\S', index)
+    if index < 0
+      break
+    elseif str[index] =~# '^[''"]'
       let arg = [matchstr(str, printf('.*\ze\\\@<!%s', str[index]), index + 1), index, '"']
       let index += strlen(arg[0]) + 2
       let opt[opt[1]] = 1 - opt[1]
@@ -540,7 +542,104 @@ function! bluemoon#lock() abort " {{{
   let s:stat.lock = 1 - s:stat.lock
 endfunction " }}}
 
+function! s:complete_func(arg, cmd, pos, prm, compf) abort " {{{
+  " @return [ [ comp1, comp2, ...], j ]
+  " @return j: index of argument
+  let a = s:parse_args(a:cmd)
+  let i = 1
+  let rest = '*'
+  while i < len(a) && a:pos > a[i][1]
+    if a[i][2] ==# '-'
+      let idx = match(a:prm, a[i][0])
+      if idx < 0
+        " unknown option
+        let i += 1
+        continue
+      endif
+      if has_key(a:compf, a[i][0] . '*')
+        let rest = a[i][0] . '*'
+      endif
+      if idx != match(a:prm, a[i][0] . ':', idx)
+        " 引数を取らないオプション
+        " 引数忘れ. through.
+        let i += 1
+        continue
+      elseif i + 1 == len(a) || a:pos >= a[i+1][1]
+        return [[get(a:compf, '*', [])], -1, a[i][0]]
+      endif
+    elseif a[i][2] ==# '--'
+      let i += 1
+      break
+    else
+      break
+    endif
+  endwhile
+
+  let j = 0
+  while i+j < len(a) && a:pos > a[i+j][1]
+    let j += 1
+  endwhile
+
+  let l:Argf = get(a:compf, rest, [])
+  if j == 0 && a:arg ==# ''
+    return [['option', l:Argf], j, '']
+  else
+    return [[l:Argf], j, '']
+  endif
+endfunction " }}}
+
+function! s:complete(arg, cmd, pos, prm, compf) abort " {{{
+  if a:arg =~# '^-\k\?'
+    return map(filter(split(a:prm, '\zs'), 'v:val =~# ''\k'''), '"-" . v:val')
+  endif
+  let [cmpl, j, a] = s:complete_func(a:arg, a:cmd, a:pos, a:prm, a:compf)
+  let candy = []
+  for l:C in cmpl
+    if type(C) == type([])
+      let candy += C
+    elseif type(C) == type(function('tr'))
+      " 第 j 引数の補完
+      " 引数 -$a の補完
+      let candy += C(a, j)
+    elseif C ==# 'option'
+      let candy += map(filter(split(a:prm, '\zs'), 'v:val =~# ''\k'''), '"-" . v:val')
+    else
+      " @FIXME :command-complete*
+    endif
+    unlet C
+  endfor
+  return filter(candy, 'v:val =~# ''^' . a:arg . "'")
+endfunction " }}}
+
+function! s:complete_d(...) " {{{
+  return keys(s:stat.added_rname)
+endfunction " }}}
+
+" @vimlint(EVL103, 1, a:_)
+function! s:complete_add(a, j) " {{{
+  if a:j == 1
+    return map(copy(g:bluemoon.colors), 'v:val["group"]')
+  else
+    return []
+  endif
+endfunction " }}}
+" @vimlint(EVL103, 0, a:_)
+
+let s:cmpf = {
+\ 'd*': function('s:complete_d'),
+\ '*': function('s:complete_add'),
+\}
+for s:u in ['D', 'l', 'c']
+  let s:cmpf[s:u] = []
+endfor
+unlet s:u
+
 function! bluemoon#complete(arg, cmd, pos) abort " {{{
+  let v = s:complete(a:arg, a:cmd, a:pos, 'dDlc', s:cmpf)
+  if type(v) == type([])
+    return v
+  endif
+
   let opts = ['-d', '-D', '-l', '-c']
   let args = s:parse_args(a:cmd)[1 :]
   let args = map(args, 'v:val[0]')
@@ -575,6 +674,7 @@ endfunction " }}}
 " BlueMoon -d {name}                    " delete {name}
 " BlueMoon -D                           " delete all
 " BlueMoon                              " show hl
+" @vimlint(EVL102, 1, l:_)
 function! bluemoon#command(arg) abort " {{{
   if !s:stat.enabled
     return
@@ -635,6 +735,7 @@ function! bluemoon#command(arg) abort " {{{
 
   return 1
 endfunction " }}}
+" @vimlint(EVL102, 0, l:_)
 
 function! s:hl_reflesh() abort " {{{
   if s:reflesh_flag && !s:stat.lock
