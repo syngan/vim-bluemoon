@@ -243,8 +243,7 @@ function! s:parse_pattern(str, index) abort " {{{
         let idx += 1
       endif
     endwhile
-    let index = match(a:str, '^\s*\zs.*$', idx+1)
-    return [pattern, index]
+    return [pattern, idx + 1]
   endif
 endfunction " }}}
 
@@ -253,20 +252,20 @@ function! s:getopt(str, prm) abort " {{{
   let args = []
   let i = 0
   while i < len(a)
-    if a[i][2] ==# '-'
+    if a[i][1] ==# '-'
       let idx = match(a:prm, a[i][0])
       if idx < 0
         throw printf('getopt: option -%s not recognized', a[i][0])
       elseif idx != match(a:prm, a[i][0] . ':', idx)
         call add(args, [a[i][0], ''])
         let i += 1
-      elseif i + 1 == len(a) || a[i+1][2][0] ==# '-'
+      elseif i + 1 == len(a) || a[i+1][1][0] ==# '-'
         throw printf('getopt: option -%s requires argument', a[i][0])
       else
         call add(args, [a[i][0], a[i+1][0]])
         let i += 2
       endif
-    elseif a[i][2] ==# '--'
+    elseif a[i][1] ==# '--'
       let i += 1
       break
     else
@@ -291,50 +290,37 @@ function! s:parse_args(str) abort " {{{
     if index < 0
       break
     elseif str[index] =~# '^[''"]'
-      let arg = [matchstr(str, printf('.*\ze\\\@<!%s', str[index]), index + 1), index, '"']
-      let index += strlen(arg[0]) + 2
+      let s = matchstr(str, printf('.*\ze\\\@<!%s', str[index]), index + 1)
+      let arg = [s, '"', index, index + strlen(s) + 2]
       let opt[opt[1]] = 1 - opt[1]
       " spece....?
     elseif match(str,'^`=.*`', index) >= 0
-      let arg = [matchstr(str, '.*\ze`', index + 2), index, '`']
-      let index += strlen(arg[0]) + 3
+      let s = matchstr(str, '.*\ze`', index + 2)
+      let arg = [s, '`', index, index + strlen(s) + 3]
       let opt[opt[1]] = 1 - opt[1]
     elseif str[index] ==# '-' && !opt[0]
       " option.
       if index + 1 == slen
-        let arg = ['-', index, '-']
-        let index += 1
+        let arg = ['-', '-', index, index + 1]
       elseif str[index + 1] !=# '-'
-        let arg = [str[index + 1], index, '-']
-        let index += 2
+        let arg = [str[index + 1], '-', index, index + 2]
         let opt[1] = 1
       else
-        let arg = ['--', index, '--']
-        let index += 2
+        let arg = ['--', '--', index, index + 2]
         let opt[opt[1]] = 1 - opt[1]
       endif
     elseif str[index] !~# '\i'
       " pattern
       let [arg_, idx] = s:parse_pattern(a:str, index) " @TODO
-      let arg = [arg_, index, '/']
-      let index = idx
+      let arg = [arg_, '/', index, idx]
       let opt[opt[1]] = 1 - opt[1]
     else
-      let arg = [matchstr(str, '\S\+', index), index, 'v']
-      let index += strlen(arg[0])
+      let s = matchstr(str, '\S\+', index)
+      let arg = [s, 'v', index, index + strlen(s)]
+      let index = arg[3]
     endif
-    if arg[2] !=# '`'
-      call add(args, arg)
-    else
-      let e = eval(arg[0])
-      if type(e) == type([])
-        let e = map(e, '[v:val, arg[1], arg[2]]')
-        let args += e
-      else
-        call add(args, [e, arg[1], arg[2]])
-      endif
-      unlet e
-    endif
+    let index = arg[3]
+    call add(args, arg)
   endwhile
 
   unlock str
@@ -548,8 +534,9 @@ function! s:complete_func(arg, cmd, pos, prm, compf) abort " {{{
   let a = s:parse_args(a:cmd)
   let i = 1
   let rest = '*'
-  while i < len(a) && a:pos > a[i][1]
-    if a[i][2] ==# '-'
+  let j = 0
+  while i < len(a) && a[i][2] <= a:pos
+    if a[i][1] ==# '-'
       let idx = match(a:prm, a[i][0])
       if idx < 0
         " unknown option
@@ -561,27 +548,26 @@ function! s:complete_func(arg, cmd, pos, prm, compf) abort " {{{
       endif
       if idx != match(a:prm, a[i][0] . ':', idx)
         " 引数を取らないオプション
-        " 引数忘れ. through.
         let i += 1
         continue
-      elseif i + 1 == len(a) || a:pos >= a[i+1][1]
+      elseif i+1 == len(a) || a:pos <= a[i+1][3]
+        " @NOTEST
         return [[get(a:compf, '*', [])], -1, a[i][0]]
       endif
-    elseif a[i][2] ==# '--'
-      let i += 1
+    elseif a[i][1] ==# '--'
+      let j = 1
       break
     else
       break
     endif
   endwhile
 
-  let j = 0
-  while i+j < len(a) && a:pos > a[i+j][1]
+  while i+j < len(a) && a[i+j][3] < a:pos
     let j += 1
   endwhile
 
   let l:Argf = get(a:compf, rest, [])
-  if j == 0 && a:arg ==# ''
+  if j == 0 && a:arg ==# '' && (i == len(a) || a[i][1] !=# '--')
     return [['option', l:Argf], j, '']
   else
     return [[l:Argf], j, '']
@@ -617,7 +603,9 @@ endfunction " }}}
 
 " @vimlint(EVL103, 1, a:_)
 function! s:complete_add(a, j) " {{{
-  if a:j == 1
+  if a:j == 0
+    return map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
+  elseif a:j == 1
     return map(copy(g:bluemoon.colors), 'v:val["group"]')
   else
     return []
