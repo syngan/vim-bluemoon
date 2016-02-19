@@ -5,7 +5,10 @@ set cpo&vim
 
 let s:stat = {'enabled': 0, 'added_pattn': {}, 'lock': 0}
 
-let s:hl = vital#of('bluemoon').import('Coaster.Highlight')
+let s:v = vital#of('bluemoon')
+let s:hl = s:v.import('Coaster.Highlight')
+let s:om = s:v.import('Opmo')
+unlet s:v
 
 function! s:dprintf(...) abort " {{{
   if exists('g:bluemoon') && get(g:bluemoon, 'verbose', 0)
@@ -754,6 +757,12 @@ function! bluemoon#disable() abort " {{{
     augroup END
 
   endif
+endfunction " }}}
+
+function! bluemoon#op(motion) abort " {{{
+  let pattern = s:om.gettext(a:motion)
+  let pattern = s:escape_pattern(pattern)
+  call s:hl_add(pattern)
 endfunction " }}}
 
 let g:bluemoon#__hl__ = get(g:, 'bluemoon#__hl__', [])
