@@ -683,7 +683,7 @@ function! bluemoon#command(arg) abort " {{{
     elseif o ==# 'D'
       let mode = 'delall'
     elseif o ==# 'p'
-      PP s:stat
+      let mode = 'print'
     elseif o ==# 'l'
       let mode = 'lock'
     elseif o ==# 'c'
@@ -722,6 +722,8 @@ function! bluemoon#command(arg) abort " {{{
       echo printf('bluemon: ok, %d colors and %d keywords are defined.',
             \ len(g:bluemoon.colors), len(get(g:bluemoon, 'keywords', 0)))
     endif
+  elseif mode ==# 'print'
+    PP bluemoon#debug(0)
   endif
 
   return 1
