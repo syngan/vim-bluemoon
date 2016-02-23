@@ -605,7 +605,7 @@ function! s:complete_d(...) " {{{
 endfunction " }}}
 
 " @vimlint(EVL103, 1, a:_)
-function! s:complete_add(a, j) " {{{
+function! s:complete_add(_, j) " {{{
   if a:j == 0
     return map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
   elseif a:j == 1
