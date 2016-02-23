@@ -10,6 +10,8 @@ let s:hl = s:v.import('Coaster.Highlight')
 let s:om = s:v.import('Opmo')
 unlet s:v
 
+let s:reflesh_flag = 0
+
 function! s:dprintf(...) abort " {{{
   if exists('g:bluemoon') && get(g:bluemoon, 'verbose', 0)
     if a:0 > 1
