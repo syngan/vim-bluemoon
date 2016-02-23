@@ -19,6 +19,9 @@ try
 catch /E117:/
 endtry
 
+if get(g:, 'bluemoon#enable_at_startup', 0)
+  call bluemoon#enable()
+endif
 
 let &cpo = s:save_cpo
 unlet s:save_cpo
