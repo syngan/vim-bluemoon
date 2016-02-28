@@ -5,7 +5,12 @@ set cpo&vim
 
 let s:stat = {'enabled': 0, 'added_pattn': {}, 'lock': 0}
 
-let s:hl = vital#of('bluemoon').import('Coaster.Highlight')
+let s:v = vital#of('bluemoon')
+let s:hl = s:v.import('Coaster.Highlight')
+let s:om = s:v.import('Opmo')
+unlet s:v
+
+let s:reflesh_flag = 0
 
 function! s:dprintf(...) abort " {{{
   if exists('g:bluemoon') && get(g:bluemoon, 'verbose', 0)
@@ -213,97 +218,117 @@ function! s:echoerr(msg) abort " {{{
   return 0
 endfunction " }}}
 
-function! s:parse_pattern(str) abort " {{{
-  let str = matchstr(a:str, '^\s*\zs.*$')
-  if str ==# ''
-    return ['', '']
-  elseif str =~# '^\i\S\+$'
-    return [str, '']
-  elseif str =~# '^\i'
+function! s:parse_pattern(str, index) abort " {{{
+  let index = match(a:str, '^\s*\zs.*$', a:index)
+  if index < 0
+    return ['', -1]
+  elseif match(a:str, '^\i\S\+$', index) >= 0
+    return [a:str[index : ], len(a:str)]
+  elseif a:str[index] =~# '\i'
     " 次の空白までが pattern
-    let idx = match(str, '\s')
-    let pattern = str[: idx-1]
-    let str = matchstr(str[idx : ], '^\s*\zs.*$')
-    return [pattern, str]
+    let idx = match(a:str, '\s', index)
+    let pattern = a:str[index : idx-1]
+    return [pattern, idx]
   else
-    let delim = str[0]
-    let idx = 1
+    let delim = a:str[index]
+    let idx = index  + 1
     let pattern = ''
-    while idx < len(str)
-      if str[idx] ==# delim
+    while idx < len(a:str)
+      if a:str[idx] ==# delim
         break
-      elseif str[idx] == '\'
-        if str[idx+1] ==# delim
+      elseif a:str[idx] == '\'
+        if a:str[idx+1] ==# delim
           let pattern .= delim
         else
-          let pattern .= str[idx : idx+1]
+          let pattern .= a:str[idx : idx+1]
         endif
-        let idx = idx + 2
+        let idx += 2
       else
-        let pattern .= str[idx]
-        let idx = idx + 1
+        let pattern .= a:str[idx]
+        let idx += 1
       endif
     endwhile
-    let str = matchstr(str[idx+1: ], '^\s*\zs.*$')
-    return [pattern, str]
+    return [pattern, idx + 1]
   endif
 endfunction " }}}
 
-function! s:getopt(str) abort " {{{
+function! s:getopt(str, prm) abort " {{{
+  let a = s:parse_args(a:str)
+  let args = []
+  let i = 0
+  while i < len(a)
+    if a[i][1] ==# '-'
+      let idx = match(a:prm, a[i][0])
+      if idx < 0
+        throw printf('getopt: option -%s not recognized', a[i][0])
+      elseif idx != match(a:prm, a[i][0] . ':', idx)
+        call add(args, [a[i][0], ''])
+        let i += 1
+      elseif i + 1 == len(a) || a[i+1][1][0] ==# '-'
+        throw printf('getopt: option -%s requires argument', a[i][0])
+      else
+        call add(args, [a[i][0], a[i+1][0]])
+        let i += 2
+      endif
+    elseif a[i][1] ==# '--'
+      let i += 1
+      break
+    else
+      break
+    endif
+  endwhile
+
+  return [args, map(a[i : ], 'v:val[0]')]
+endfunction " }}}
+
+function! s:parse_args(str) abort " {{{
   let str = a:str
+  lockvar str
   let args = []
   " opt[0] = 1 if option_end
   " opt[1] = 1 if option_in
   let opt = [0, 0]
-  while str !~# '^\s*$'
-    let str = matchstr(str, '^\s*\zs.*$')
-    if str =~# '^[''"]'
-      let typ = 1
-      let arg = matchstr(str, printf('.*\ze\\\@<!%s', str[0]), 1)
-      let str = str[strlen(arg) + 2 :]
+  let index = 0
+  let slen = strlen(str)
+  while index < slen
+    let index = match(str, '^\s*\zs\S', index)
+    if index < 0
+      break
+    elseif str[index] =~# '^[''"]'
+      let s = matchstr(str, printf('.*\ze\\\@<!%s', str[index]), index + 1)
+      let arg = [s, '"', index, index + strlen(s) + 2]
       let opt[opt[1]] = 1 - opt[1]
       " spece....?
-    elseif str =~# '^`='
-      let typ = 0
-      let arg = matchstr(str, '.*\ze`', 2)
-      let str = str[strlen(arg) + 3 :]
+    elseif match(str,'^`=.*`', index) >= 0
+      let s = matchstr(str, '.*\ze`', index + 2)
+      let arg = [s, '`', index, index + strlen(s) + 3]
       let opt[opt[1]] = 1 - opt[1]
-    elseif str[0] ==# '-' && !opt[0]
+    elseif str[index] ==# '-' && !opt[0]
       " option.
-      let typ = 1
-      if str ==# '-'
-        let arg = str
-        let str = ''
-      elseif str[1] !=# '-'
-        let arg = str[: 1]
-        let str = str[2 :]
+      if index + 1 == slen
+        let arg = ['-', '-', index, index + 1]
+      elseif str[index + 1] !=# '-'
+        let arg = [str[index + 1], '-', index, index + 2]
         let opt[1] = 1
       else
-        " @TODO
+        let arg = ['--', '--', index, index + 2]
+        let opt[opt[1]] = 1 - opt[1]
       endif
-    elseif str[0] !~# '\i'
+    elseif str[index] !~# '\i'
       " pattern
-      let [arg, str] = s:parse_pattern(str)
-      let typ = 1
+      let [arg_, idx] = s:parse_pattern(a:str, index) " @TODO
+      let arg = [arg_, '/', index, idx]
       let opt[opt[1]] = 1 - opt[1]
     else
-      let typ = 2
-      let arg = matchstr(str, '\S\+')
-      let str = str[strlen(arg) :]
+      let s = matchstr(str, '\S\+', index)
+      let arg = [s, 'v', index, index + strlen(s)]
+      let index = arg[3]
     endif
-    if typ != 0
-      call add(args, arg)
-    else
-      let e = eval(arg)
-      if type(e) == type([])
-        let args += e
-      else
-        call add(args, e)
-      endif
-      unlet e
-    endif
+    let index = arg[3]
+    call add(args, arg)
   endwhile
 
+  unlock str
   return args
 endfunction " }}}
 
@@ -508,19 +533,117 @@ function! bluemoon#lock() abort " {{{
   let s:stat.lock = 1 - s:stat.lock
 endfunction " }}}
 
-function! bluemoon#complete(arg, cmd, pos) abort " {{{
-  let args = s:getopt(a:cmd)[1 :]
-  if len(args) == 0
-    return ['-d', '-D', '-l', '-c'] + map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
-  elseif len(args) == 1
-    if a:arg =~# '-[lcD]'
-      if a:pos == len(a:cmd)
-        return ['-d', '-D', '-l', '-c']
+function! s:complete_func(arg, cmd, pos, prm, compf) abort " {{{
+  " @return [ [ comp1, comp2, ...], j ]
+  " @return j: index of argument
+  let a = s:parse_args(a:cmd)
+  let i = 1
+  let rest = '*'
+  let j = 0
+  while i < len(a) && a[i][2] <= a:pos
+    if a[i][1] ==# '-'
+      let idx = match(a:prm, a[i][0])
+      if idx < 0
+        " unknown option
+        let i += 1
+        continue
       endif
-      return []
-    elseif a:arg ==# '-d'
+      if has_key(a:compf, a[i][0] . '*')
+        let rest = a[i][0] . '*'
+      endif
+      if idx != match(a:prm, a[i][0] . ':', idx)
+        " 引数を取らないオプション
+        let i += 1
+        continue
+      elseif i+1 == len(a) || a:pos <= a[i+1][3]
+        " @NOTEST
+        return [[get(a:compf, '*', [])], -1, a[i][0]]
+      endif
+    elseif a[i][1] ==# '--'
+      let j = 1
+      break
+    else
+      break
+    endif
+  endwhile
+
+  while i+j < len(a) && a[i+j][3] < a:pos
+    let j += 1
+  endwhile
+
+  let l:Argf = get(a:compf, rest, [])
+  if j == 0 && a:arg ==# '' && (i == len(a) || a[i][1] !=# '--')
+    return [['option', l:Argf], j, '']
+  else
+    return [[l:Argf], j, '']
+  endif
+endfunction " }}}
+
+function! s:complete(arg, cmd, pos, prm, compf) abort " {{{
+  if a:arg =~# '^-\k\?'
+    return map(filter(split(a:prm, '\zs'), 'v:val =~# ''\k'''), '"-" . v:val')
+  endif
+  let [cmpl, j, a] = s:complete_func(a:arg, a:cmd, a:pos, a:prm, a:compf)
+  let candy = []
+  for l:C in cmpl
+    if type(C) == type([])
+      let candy += C
+    elseif type(C) == type(function('tr'))
+      " 第 j 引数の補完
+      " 引数 -$a の補完
+      let candy += C(a, j)
+    elseif C ==# 'option'
+      let candy += map(filter(split(a:prm, '\zs'), 'v:val =~# ''\k'''), '"-" . v:val')
+    else
+      " @FIXME :command-complete*
+    endif
+    unlet C
+  endfor
+  return filter(candy, 'v:val =~# ''^' . a:arg . "'")
+endfunction " }}}
+
+function! s:complete_d(...) " {{{
+  return keys(s:stat.added_rname)
+endfunction " }}}
+
+" @vimlint(EVL103, 1, a:_)
+function! s:complete_add(_, j) " {{{
+  if a:j == 0
+    return map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
+  elseif a:j == 1
+    return map(copy(g:bluemoon.colors), 'v:val["group"]')
+  else
+    return []
+  endif
+endfunction " }}}
+" @vimlint(EVL103, 0, a:_)
+
+let s:cmpf = {
+\ 'd*': function('s:complete_d'),
+\ '*': function('s:complete_add'),
+\}
+for s:u in ['D', 'l', 'c']
+  let s:cmpf[s:u] = []
+endfor
+unlet s:u
+
+function! bluemoon#complete(arg, cmd, pos) abort " {{{
+  let v = s:complete(a:arg, a:cmd, a:pos, 'dDlc', s:cmpf)
+  if type(v) == type([])
+    return v
+  endif
+
+  let opts = ['-d', '-D', '-l', '-c']
+  let args = s:parse_args(a:cmd)[1 :]
+  let args = map(args, 'v:val[0]')
+  if len(args) == 0
+    return opts + map(keys(s:stat.added_pattn), '"/" . v:val . "/"')
+  elseif a:arg =~# '^-'
+    return opts
+  elseif len(args) == 1
+    if a:arg ==# '-d'
       if a:pos == len(a:cmd)
-        return ['-d', '-D', '-l', '-c']
+        return opts
       endif
       return keys(s:stat.added_rname)
     else
@@ -544,66 +667,70 @@ endfunction " }}}
 " BlueMoon -d {name}                    " delete {name}
 " BlueMoon -D                           " delete all
 " BlueMoon                              " show hl
+" @vimlint(EVL102, 1, l:_)
 function! bluemoon#command(arg) abort " {{{
   if !s:stat.enabled
     return
   endif
-  let args = s:getopt(a:arg)
-  let i = 0
+  try
+    let [opts, args] = s:getopt(a:arg, 'dDplc')
+  catch /getopt/
+    call s:echoerr(substitute(v:exception, '^.*getopt: ', '', ''))
+    return
+  endtry
   let mode = 'add_or_show'
-  while i < len(args)
-    if args[i] == '-d'
+  for [o,_] in opts
+    if o ==# 'd'
       let mode = 'del'
-      let i += 1
-    elseif args[i] == '-D'
+    elseif o ==# 'D'
       let mode = 'delall'
-      let i += 1
-    elseif args[i] == '-p'
-      PP s:stat
-    elseif args[i] == '-l'
+    elseif o ==# 'p'
+      let mode = 'print'
+    elseif o ==# 'l'
       let mode = 'lock'
-      let i += 1
-    elseif args[i] == '-c'
+    elseif o ==# 'c'
       let mode = 'check'
-      let i += 1
     else
       break
     endif
-  endwhile
+  endfor
 
   if mode ==# 'add_or_show'
     if len(args) == 0
       call s:show()
     else
-      call call('s:hl_add', args[i :])
+      call call('s:hl_add', args)
     endif
   elseif mode ==# 'del'
-    if i == len(args)
+    if len(args) == 0
       return s:echoerr('Usage: Bluemoon -d {name} ...')
     endif
-    call call('s:hl_del', args[i :])
+    call call('s:hl_del', args)
   elseif mode ==# 'delall'
-    if i != len(args)
+    if len(args) != 0
       return s:echoerr('Usage: Bluemoon -D')
     endif
     call bluemoon#clear()
   elseif mode ==# 'lock'
-    if i != len(args)
+    if len(args) != 0
       return s:echoerr('Usage: Bluemoon -l')
     endif
     call bluemoon#lock()
   elseif mode ==# 'check'
-    if i != len(args)
+    if len(args) != 0
       return s:echoerr('Usage: Bluemoon -c')
     endif
     if bluemoon#check()
       echo printf('bluemon: ok, %d colors and %d keywords are defined.',
             \ len(g:bluemoon.colors), len(get(g:bluemoon, 'keywords', 0)))
     endif
+  elseif mode ==# 'print'
+    PP bluemoon#debug(0)
   endif
 
   return 1
 endfunction " }}}
+" @vimlint(EVL102, 0, l:_)
 
 function! s:hl_reflesh() abort " {{{
   if s:reflesh_flag && !s:stat.lock
@@ -636,13 +763,16 @@ function! bluemoon#disable() abort " {{{
   endif
 endfunction " }}}
 
+function! bluemoon#op(motion) abort " {{{
+  let pattern = s:om.gettext(a:motion)
+  let pattern = s:escape_pattern(pattern)
+  call s:hl_add(pattern)
+endfunction " }}}
+
 let g:bluemoon#__hl__ = get(g:, 'bluemoon#__hl__', [])
 call map(g:bluemoon#__hl__, 's:hl_clearall(v:val)')
 let g:bluemoon#__hl__ = [s:hl]
 
-if get(g:, 'bluemoon#enable_at_startup', 0)
-  call bluemoon#enable()
-endif
 
 let &cpo = s:save_cpo
 unlet s:save_cpo
